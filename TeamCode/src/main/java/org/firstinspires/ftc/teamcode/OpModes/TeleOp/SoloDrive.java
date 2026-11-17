@@ -1,0 +1,217 @@
+package org.firstinspires.ftc.teamcode.OpModes.TeleOp;
+
+import com.pedropathing.follower.Follower;
+import com.pedropathing.follower.ManualDrive;
+import com.pedropathing.math.Pose;
+import com.pedropathing.math.Velocity;
+import com.qualcomm.hardware.lynx.LynxModule;
+import com.qualcomm.robotcore.eventloop.opmode.OpMode;
+
+import org.firstinspires.ftc.teamcode.OpModes.PoseStorage;
+import org.firstinspires.ftc.teamcode.Subsystems.IntakeSubsystem;
+import org.firstinspires.ftc.teamcode.Subsystems.IntakeSubsystem.FlowerState;
+import org.firstinspires.ftc.teamcode.Subsystems.ShooterSubsystem;
+import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
+
+import java.util.function.BooleanSupplier;
+
+/**
+ * Общая логика TeleOp для обоих альянсов.
+ * BlueSoloDrive и RedSoloDrive задают только альянс и стартовые позиции.
+ *
+ * Управление (gamepad1):
+ *   стики — езда (field-centric)      L3 — сброс позиции
+ *   X  — трекинг турели вкл/выкл      R1 — маховик вкл/выкл
+ *   R2 — интейк | L2 — трансфер | L1 — реверс
+ *   R3 — flower открыть/закрыть
+ */
+public abstract class SoloDrive extends OpMode {
+
+    private static final double TRIGGER_THRESHOLD = 0.2;
+
+    /* ================= ALLIANCE ================= */
+
+    protected abstract boolean isBlue();
+
+    /** Позиция при запуске без автонома. */
+    protected abstract Pose startPose();
+
+    /** Позиция сброса (L3). */
+    protected abstract Pose resetPose();
+
+    /**
+     * Поворот осей field-centric под сторону, где стоит водитель (радианы).
+     * 0 — «вперёд» на стике это +X поля; PI — это -X поля.
+     */
+    protected abstract double driverHeadingOffset();
+
+    private ShooterSubsystem shooter;
+    private IntakeSubsystem intake;
+    private Follower follower;
+
+    private boolean trackingOn = false;
+
+    private final Button resetButton    = new Button(() -> gamepad1.left_stick_button);
+    private final Button trackingButton = new Button(() -> gamepad1.x);
+    private final Button shooterButton  = new Button(() -> gamepad1.right_bumper);
+    private final Button flowerButton   = new Button(() -> gamepad1.right_stick_button);
+
+    /* ================= LIFECYCLE ================= */
+
+    @Override
+    public void init() {
+        // Bulk caching: все чтения с хаба за цикл идут одним запросом.
+        for (LynxModule hub : hardwareMap.getAll(LynxModule.class)) {
+            hub.setBulkCachingMode(LynxModule.BulkCachingMode.AUTO);
+        }
+
+        shooter = new ShooterSubsystem(hardwareMap);
+        intake = new IntakeSubsystem(hardwareMap);
+        follower = Constants.createFollower(hardwareMap);
+
+        // После автонома продолжаем с его конечной позиции, иначе — со startPose.
+        boolean afterAuto = PoseStorage.autoEndPose != null;
+        follower.setPose(afterAuto ? PoseStorage.autoEndPose : startPose());
+        PoseStorage.autoEndPose = null; // чтобы следующий запуск без автонома взял startPose
+
+        telemetry.addLine(isBlue() ? "BLUE TeleOp Ready" : "RED TeleOp Ready");
+        telemetry.addLine(afterAuto ? "Pose: from autonomous" : "Pose: startPose");
+        telemetry.addData("Pose", follower.pose());
+        telemetry.update();
+    }
+
+    @Override
+    public void start() {
+        trackingOn = true;
+        shooter.setFlywheelEnabled(true);
+        shooter.centerTurret();
+    }
+
+    @Override
+    public void loop() {
+        drive();
+        aim();
+        controlShooter();
+        controlIntake();
+
+        shooter.update();
+        intake.update();
+
+        showTelemetry();
+    }
+
+    @Override
+    public void stop() {
+        if (shooter != null) {
+            shooter.stop();
+        }
+
+        if (intake != null) {
+            intake.stop();
+            intake.update();
+        }
+    }
+
+    /* ================= CONTROLS ================= */
+
+    private void drive() {
+        if (resetButton.wasPressed()) {
+            follower.setPose(resetPose());
+        }
+
+        // Field-centric. Для robot-centric: follower.manual(forward, strafe, turn).
+        // BRAKE при отпущенных стиках задан в Constants (manualBrakeMode).
+        follower.manual(ManualDrive.fieldCentric(
+                -gamepad1.left_stick_y,
+                -gamepad1.left_stick_x,
+                -gamepad1.right_stick_x,
+                follower.pose().heading(),
+                driverHeadingOffset()
+        ));
+        follower.update();
+    }
+
+    private void aim() {
+        if (trackingButton.wasPressed()) {
+            trackingOn = !trackingOn;
+        }
+
+        // При выключенном трекинге турель сохраняет последнее положение.
+        if (trackingOn) {
+            Pose pose = follower.pose();
+            Velocity velocity = follower.velocity(); // в координатах поля
+            shooter.alignTurret(
+                    pose.x(), pose.y(), pose.heading(),
+                    velocity.vx, velocity.vy, velocity.omega,
+                    isBlue()
+            );
+        }
+    }
+
+    private void controlShooter() {
+        if (shooterButton.wasPressed()) {
+            shooter.setFlywheelEnabled(!shooter.isFlywheelEnabled());
+        }
+    }
+
+    private void controlIntake() {
+        // Приоритет: L2 (трансфер) > R2 (интейк) > L1 (реверс).
+        if (gamepad1.left_trigger > TRIGGER_THRESHOLD) {
+            intake.transfer();
+        } else if (gamepad1.right_trigger > TRIGGER_THRESHOLD) {
+            intake.intake();
+        } else if (gamepad1.left_bumper) {
+            intake.reverse();
+        } else {
+            intake.stop();
+        }
+
+        if (flowerButton.wasPressed()) {
+            if (intake.getFlowerState() == FlowerState.OPEN) {
+                intake.flowerC();
+            } else {
+                intake.flowerO();
+            }
+        }
+    }
+
+    /* ================= TELEMETRY ================= */
+
+    private void showTelemetry() {
+        telemetry.addData("Pose", follower.pose());
+        telemetry.addData("Tracking", trackingOn);
+        telemetry.addData("Shooter On", shooter.isFlywheelEnabled());
+
+        telemetry.addData("Turret Position", shooter.getPos());
+        telemetry.addData("Turret Angle", shooter.getAngle());
+
+        telemetry.addData("Target ticks/s", ShooterSubsystem.vel);
+        telemetry.addData("Flywheel ticks/s", shooter.getVel());
+        telemetry.addData("Distance to goal", shooter.getDistance());
+        telemetry.addData("Ready to shoot", shooter.isReady());
+
+        telemetry.addData("Intake", intake.getState());
+        telemetry.addData("Flower", intake.getFlowerState());
+        telemetry.update();
+    }
+
+    /* ================= HELPERS ================= */
+
+    /** Кнопка, которая срабатывает один раз за нажатие. */
+    private static class Button {
+        private final BooleanSupplier input;
+        private boolean last = false;
+
+        Button(BooleanSupplier input) {
+            this.input = input;
+        }
+
+        /** Вызывать ровно один раз за цикл. */
+        boolean wasPressed() {
+            boolean current = input.getAsBoolean();
+            boolean pressed = current && !last;
+            last = current;
+            return pressed;
+        }
+    }
+}
