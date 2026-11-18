@@ -1,5 +1,6 @@
 package org.firstinspires.ftc.teamcode.Subsystems;
 
+import com.acmerobotics.dashboard.config.Config;
 import com.bylazar.configurables.annotations.Configurable;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
@@ -8,7 +9,8 @@ import com.qualcomm.robotcore.hardware.Servo;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 
-@Configurable
+@Config        // FTC Dashboard
+@Configurable  // Panels
 public class ShooterSubsystem {
 
     /* ================= HARDWARE ================= */
@@ -80,6 +82,11 @@ public class ShooterSubsystem {
 
     private boolean flywheelEnabled = false;
     private double distanceToGoal = 0;
+
+    // Последнее наведение (координаты поля, дюймы) — для отрисовки в Dashboard
+    private double lastTurretX, lastTurretY;
+    private double lastAimX, lastAimY;
+    private double lastGoalX, lastGoalY;
 
     /* ================= INIT ================= */
 
@@ -171,6 +178,13 @@ public class ShooterSubsystem {
         targetAngleDeg = clamp(turretCenter + turretRelative / turretRangeDeg, 0, 1);
         distanceToGoal = Math.hypot(aimX - turretX, aimY - turretY);
 
+        lastTurretX = turretX;
+        lastTurretY = turretY;
+        lastAimX = aimX;
+        lastAimY = aimY;
+        lastGoalX = goalX;
+        lastGoalY = goalY;
+
         setTurretPosition(targetAngleDeg);
     }
 
@@ -249,6 +263,15 @@ public class ShooterSubsystem {
     public double getPos()   { return targetAngleDeg; }
     public double getAngle() { return angleToGoal; }
     public double getDistance() { return distanceToGoal; }
+
+    public double getTurretX() { return lastTurretX; }
+    public double getTurretY() { return lastTurretY; }
+    /** Точка, куда реально целится турель (с поправкой SWM). */
+    public double getAimX()    { return lastAimX; }
+    public double getAimY()    { return lastAimY; }
+    /** Настоящая цель. */
+    public double getGoalX()   { return lastGoalX; }
+    public double getGoalY()   { return lastGoalY; }
 
     /* ================= HELPERS ================= */
 

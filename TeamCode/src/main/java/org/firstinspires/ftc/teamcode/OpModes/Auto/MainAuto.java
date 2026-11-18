@@ -13,6 +13,7 @@ import org.firstinspires.ftc.teamcode.OpModes.PoseStorage;
 import org.firstinspires.ftc.teamcode.Subsystems.IntakeSubsystem;
 import org.firstinspires.ftc.teamcode.Subsystems.ShooterSubsystem;
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
+import org.firstinspires.ftc.teamcode.util.DashboardView;
 
 @Configurable
 @Autonomous(name = "Main Auto", group = "Autonomous")
@@ -151,5 +152,7 @@ public class MainAuto extends LinearOpMode {
         telemetry.addData("Flywheel ticks/s", shooter.getVel());
         telemetry.addData("Intake", intake.getState());
         telemetry.update();
+
+        DashboardView.send(follower.pose(), shooter, intake, BLUE);
     }
 }

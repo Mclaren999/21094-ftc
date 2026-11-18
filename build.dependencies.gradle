@@ -21,4 +21,10 @@ dependencies {
 
     // Panels (@Configurable, telemetry). The Sloth build must match the Sloth runtime (0.3.2) that AutoTune needs.
     implementation 'com.bylazar.sloth:fullpanels:0.3.2+1.0.13'
+
+    // FTC Dashboard 0.6.0, the Sloth build (plain dashboard breaks under the Sloth runtime).
+    // Open http://192.168.43.1:8080/dash : field, graphs, telemetry, @Config values.
+    implementation('com.acmerobotics.slothboard:dashboard:0.3.2+0.6.0') {
+        exclude group: 'org.firstinspires.ftc'
+    }
 }

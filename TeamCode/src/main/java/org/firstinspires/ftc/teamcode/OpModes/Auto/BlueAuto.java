@@ -15,6 +15,7 @@ import org.firstinspires.ftc.teamcode.OpModes.PoseStorage;
 import org.firstinspires.ftc.teamcode.Subsystems.IntakeSubsystem;
 import org.firstinspires.ftc.teamcode.Subsystems.ShooterSubsystem;
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
+import org.firstinspires.ftc.teamcode.util.DashboardView;
 
 /**
  * Автоном синего альянса: 5 серий выстрелов и парковка.
@@ -202,6 +203,8 @@ public class BlueAuto extends LinearOpMode {
         telemetry.addData("Ready to shoot", shooter.isReady());
         telemetry.addData("Intake", intake.getState());
         telemetry.update();
+
+        DashboardView.send(pose, shooter, intake, IS_BLUE);
     }
 
     /* ================= PATHS ================= */

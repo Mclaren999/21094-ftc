@@ -1,12 +1,14 @@
 package org.firstinspires.ftc.teamcode.Subsystems;
 
+import com.acmerobotics.dashboard.config.Config;
 import com.bylazar.configurables.annotations.Configurable;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.qualcomm.robotcore.hardware.Servo;
 
-@Configurable
+@Config        // FTC Dashboard
+@Configurable  // Panels
 public class IntakeSubsystem {
 
     /* ================= HARDWARE ================= */
@@ -48,7 +50,7 @@ public class IntakeSubsystem {
     public static double INTAKE_TRANSFER_POWER = -1.0;
 
     // TRANSFER: всё в одну сторону — мячи идут в шутер
-    public static double TRANSFER_INTAKE_POWER   = -0.6;
+    public static double TRANSFER_INTAKE_POWER   = -1;
     public static double TRANSFER_TRANSFER_POWER = 1.0;
 
     // REVERSE: всё в обратную сторону — мячи выбрасываются

@@ -12,6 +12,7 @@ import org.firstinspires.ftc.teamcode.Subsystems.IntakeSubsystem;
 import org.firstinspires.ftc.teamcode.Subsystems.IntakeSubsystem.FlowerState;
 import org.firstinspires.ftc.teamcode.Subsystems.ShooterSubsystem;
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
+import org.firstinspires.ftc.teamcode.util.DashboardView;
 
 import java.util.function.BooleanSupplier;
 
@@ -193,6 +194,8 @@ public abstract class SoloDrive extends OpMode {
         telemetry.addData("Intake", intake.getState());
         telemetry.addData("Flower", intake.getFlowerState());
         telemetry.update();
+
+        DashboardView.send(follower.pose(), shooter, intake, isBlue());
     }
 
     /* ================= HELPERS ================= */
