@@ -32,8 +32,9 @@ public class ShooterSubsystem {
     // Куда смотрит турель при turretCenter, градусы от носа робота:
     // 0 — вперёд, 180 — назад (турель установлена развёрнутой)
     public static double turretCenterHeadingDeg = 180;
-    // Сколько градусов поворота турели дают позиции сервы 0..1
-    public static double turretRangeDeg = 360;
+    // Сколько градусов поворота турели дают позиции сервы 0..1.
+    // Больше 360 — у турели есть запас: она доворачивает дальше, а не крутится на полный оборот.
+    public static double turretRangeDeg = 440;
 
     // Точки прицеливания
     public static double blueGoalX = 83;
@@ -80,6 +81,8 @@ public class ShooterSubsystem {
 
     private boolean flywheelEnabled = false;
     private double distanceToGoal = 0;
+    // Текущий поворот турели от turretCenter, градусы (может быть больше 180 при запасе хода)
+    private double turretRelativeDeg = 0;
 
     /* ================= INIT ================= */
 
@@ -107,6 +110,7 @@ public class ShooterSubsystem {
     public void centerTurret() {
         angleToGoal = turretCenterHeadingDeg;
         targetAngleDeg = turretCenter;
+        turretRelativeDeg = 0;
         setTurretPosition(targetAngleDeg);
     }
 
@@ -167,8 +171,8 @@ public class ShooterSubsystem {
         angleToGoal = normalizeDegrees(fieldAngle - Math.toDegrees(heading));
 
         // Угол, на который турель должна отвернуться от своего положения при turretCenter
-        double turretRelative = normalizeDegrees(angleToGoal - turretCenterHeadingDeg);
-        targetAngleDeg = clamp(turretCenter + turretRelative / turretRangeDeg, 0, 1);
+        turretRelativeDeg = chooseTurretRelative(normalizeDegrees(angleToGoal - turretCenterHeadingDeg));
+        targetAngleDeg = clamp(turretCenter + turretRelativeDeg / turretRangeDeg, 0, 1);
         distanceToGoal = Math.hypot(aimX - turretX, aimY - turretY);
 
         setTurretPosition(targetAngleDeg);
@@ -254,6 +258,27 @@ public class ShooterSubsystem {
 
     private static double clamp(double value, double min, double max) {
         return Math.max(min, Math.min(max, value));
+    }
+
+    /**
+     * Один и тот же угол можно получить как a, a+360 или a-360. Берём вариант, который
+     * помещается в ход сервы и ближе всего к текущему положению турели:
+     * так она не делает полный оборот, когда цель проходит через край хода.
+     */
+    private double chooseTurretRelative(double relative) {
+        double min = -turretCenter * turretRangeDeg;       // поворот при позиции сервы 0
+        double max = (1 - turretCenter) * turretRangeDeg;  // поворот при позиции сервы 1
+
+        double best = relative;
+        boolean found = false;
+        for (double candidate : new double[]{relative, relative + 360, relative - 360}) {
+            if (candidate < min || candidate > max) continue;
+            if (!found || Math.abs(candidate - turretRelativeDeg) < Math.abs(best - turretRelativeDeg)) {
+                best = candidate;
+                found = true;
+            }
+        }
+        return best; // если ни один не помещается, clamp ниже упрёт турель в край
     }
 
     private static double normalizeDegrees(double angle) {
