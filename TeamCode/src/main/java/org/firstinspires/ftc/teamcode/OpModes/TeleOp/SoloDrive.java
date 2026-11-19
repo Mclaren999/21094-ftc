@@ -1,5 +1,6 @@
 package org.firstinspires.ftc.teamcode.OpModes.TeleOp;
 
+import com.bylazar.configurables.annotations.Configurable;
 import com.pedropathing.follower.Follower;
 import com.pedropathing.follower.ManualDrive;
 import com.pedropathing.math.Pose;
@@ -24,10 +25,29 @@ import java.util.function.BooleanSupplier;
  *   X  — трекинг турели вкл/выкл      R1 — маховик вкл/выкл
  *   R2 — интейк | L2 — трансфер | L1 — реверс
  *   R3 — flower открыть/закрыть
+ *
+ * Удержание угла: пока правый стик отпущен, робот держит свой курс
+ * (не разворачивается от толчков и при езде). Повернули стиком — держит новый курс.
  */
+@Configurable
 public abstract class SoloDrive extends OpMode {
 
     private static final double TRIGGER_THRESHOLD = 0.2;
+
+    /* ================= HEADING HOLD ================= */
+    // Меняются через Panels (@Configurable)
+
+    public static boolean HEADING_HOLD = true;
+    /** Мощность поворота на 1 радиан ошибки. Робот "виляет" — уменьшить, держит вяло — увеличить. */
+    public static double HEADING_KP = 1.5;
+    /** Гасит раскачку: мощность на 1 рад/с угловой скорости. */
+    public static double HEADING_KD = 0.1;
+    /** Ошибка меньше этого (градусы) не исправляется — чтобы робот не дрожал. */
+    public static double HEADING_TOLERANCE_DEG = 1.0;
+    /** Правый стик меньше этого считается отпущенным. */
+    public static double TURN_DEADBAND = 0.05;
+    /** Сколько ждать после отпускания стика, прежде чем запомнить курс (мс): робот успевает остановить поворот. */
+    public static long HEADING_SETTLE_MS = 250;
 
     /* ================= ALLIANCE ================= */
 
@@ -50,6 +70,10 @@ public abstract class SoloDrive extends OpMode {
     private Follower follower;
 
     private boolean trackingOn = false;
+
+    private double targetHeading = 0;     // курс, который держим, рад
+    private boolean holdingHeading = false;
+    private long lastTurnTimeMs = 0;
 
     private final Button resetButton    = new Button(() -> gamepad1.left_stick_button);
     private final Button trackingButton = new Button(() -> gamepad1.x);
@@ -117,6 +141,7 @@ public abstract class SoloDrive extends OpMode {
     private void drive() {
         if (resetButton.wasPressed()) {
             follower.setPose(resetPose());
+            holdingHeading = false; // курс сменился — запомнить заново
         }
 
         // Field-centric. Для robot-centric: follower.manual(forward, strafe, turn).
@@ -124,11 +149,44 @@ public abstract class SoloDrive extends OpMode {
         follower.manual(ManualDrive.fieldCentric(
                 -gamepad1.left_stick_y,
                 -gamepad1.left_stick_x,
-                -gamepad1.right_stick_x,
+                turnPower(-gamepad1.right_stick_x),
                 follower.pose().heading(),
                 driverHeadingOffset()
         ));
         follower.update();
+    }
+
+    /**
+     * Мощность поворота: со стика, а если стик отпущен — удержание курса.
+     * Плюс = против часовой (курс растёт).
+     */
+    private double turnPower(double stickTurn) {
+        long now = System.currentTimeMillis();
+        double heading = follower.pose().heading();
+
+        if (!HEADING_HOLD || Math.abs(stickTurn) > TURN_DEADBAND) {
+            lastTurnTimeMs = now;
+            holdingHeading = false;
+            return stickTurn;
+        }
+
+        // Стик только что отпустили: даём роботу остановиться и запоминаем курс.
+        if (!holdingHeading) {
+            if (now - lastTurnTimeMs < HEADING_SETTLE_MS) {
+                return 0;
+            }
+            targetHeading = heading;
+            holdingHeading = true;
+        }
+
+        double error = normalizeRadians(targetHeading - heading);
+        if (Math.abs(error) < Math.toRadians(HEADING_TOLERANCE_DEG)) {
+            return 0;
+        }
+
+        double omega = follower.velocity().omega;
+        double power = HEADING_KP * error - HEADING_KD * omega;
+        return Math.max(-1, Math.min(1, power));
     }
 
     private void aim() {
@@ -179,6 +237,8 @@ public abstract class SoloDrive extends OpMode {
 
     private void showTelemetry() {
         telemetry.addData("Pose", follower.pose());
+        telemetry.addData("Heading hold", holdingHeading
+                ? String.format("%.1f°", Math.toDegrees(targetHeading)) : "off");
         telemetry.addData("Tracking", trackingOn);
         telemetry.addData("Shooter On", shooter.isFlywheelEnabled());
 
@@ -196,6 +256,12 @@ public abstract class SoloDrive extends OpMode {
     }
 
     /* ================= HELPERS ================= */
+
+    private static double normalizeRadians(double angle) {
+        while (angle > Math.PI)  angle -= 2 * Math.PI;
+        while (angle < -Math.PI) angle += 2 * Math.PI;
+        return angle;
+    }
 
     /** Кнопка, которая срабатывает один раз за нажатие. */
     private static class Button {
