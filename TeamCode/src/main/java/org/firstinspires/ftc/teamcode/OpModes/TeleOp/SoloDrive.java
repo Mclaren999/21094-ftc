@@ -96,7 +96,7 @@ public abstract class SoloDrive extends OpMode {
 
         // После автонома продолжаем с его конечной позиции, иначе — со startPose.
         boolean afterAuto = PoseStorage.autoEndPose != null;
-        follower.setPose(afterAuto ? PoseStorage.autoEndPose : startPose());
+        follower.setStartingPose(afterAuto ? PoseStorage.autoEndPose : startPose());
         PoseStorage.autoEndPose = null; // чтобы следующий запуск без автонома взял startPose
 
         telemetry.addLine(isBlue() ? "BLUE TeleOp Ready" : "RED TeleOp Ready");

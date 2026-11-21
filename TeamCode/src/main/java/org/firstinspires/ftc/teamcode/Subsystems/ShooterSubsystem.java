@@ -74,6 +74,9 @@ public class ShooterSubsystem {
     public static double V = 0.00033;
     public static double S = 0.6;
     public static int threshold = 1000;
+    // Насколько скорость может отличаться от цели, чтобы считать маховик готовым (isReady), тики/с.
+    // Отдельно от threshold: с threshold = 1000 "готов" срабатывал, когда до цели не хватало 1000.
+    public static int readyTolerance = 100;
 
     private static final double FIELD_MID_Y = 72;
 
@@ -116,8 +119,11 @@ public class ShooterSubsystem {
 
     /** Ставит турель в середину хода сервы (при развёрнутой турели она смотрит назад). */
     public void centerTurret() {
-        turretLeft.setPosition(0.5);
-        turretRight.setPosition(0.5);
+        // Сбрасываем и состояние наведения, иначе выбор стороны и телеметрия берут старый угол.
+        turretRelativeDeg = 0;
+        angleToGoal = turretCenterHeadingDeg;
+        targetAngleDeg = 0.5;
+        setTurretPosition(0.5);
     }
 
     /**
@@ -208,7 +214,6 @@ public class ShooterSubsystem {
         return flywheelEnabled;
     }
 
-    /** Вызывать каждый цикл: держит скорость маховика. */
     /**
      * Фиксированная скорость маховика (тики/с) вместо скорости по дистанции.
      * 0 — снова считать по дистанции.
@@ -219,6 +224,7 @@ public class ShooterSubsystem {
 
     private double fixedVelocity = 0;
 
+    /** Вызывать каждый цикл: держит скорость маховика. */
     public void update() {
         double target = fixedVelocity > 0 ? fixedVelocity : velocityForDistance(distanceToGoal);
         vel = flywheelEnabled ? (int) Math.max(0, target) : 0;
@@ -248,7 +254,7 @@ public class ShooterSubsystem {
 
     /** true, когда маховик включён и набрал нужную скорость — можно стрелять. */
     public boolean isReady() {
-        return flywheelEnabled && vel > 0 && Math.abs(vel - getVel()) <= threshold;
+        return flywheelEnabled && vel > 0 && Math.abs(vel - getVel()) <= readyTolerance;
     }
 
     /** Выключает маховик. */
