@@ -1,6 +1,6 @@
 package org.firstinspires.ftc.teamcode.OpModes;
 
-import com.pedropathing.math.Pose;
+import com.pedropathing.geometry.Pose;
 
 /**
  * Передаёт позицию робота из автонома в TeleOp.

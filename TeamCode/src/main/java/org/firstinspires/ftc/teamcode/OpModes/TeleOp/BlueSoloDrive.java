@@ -1,9 +1,10 @@
 package org.firstinspires.ftc.teamcode.OpModes.TeleOp;
 
 import com.bylazar.configurables.annotations.Configurable;
-import com.pedropathing.api.PoseFactory;
-import com.pedropathing.math.Pose;
+import com.pedropathing.geometry.Pose;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
+
+import org.firstinspires.ftc.teamcode.pedroPathing.Poses;
 //bismillah
 
 /** TeleOp синего альянса. Вся логика — в SoloDrive. */
@@ -11,10 +12,8 @@ import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 @TeleOp(name = "Bismillah Inshallah ", group = "TeleOp")
 public class BlueSoloDrive extends SoloDrive {
 
-    private static final PoseFactory P = PoseFactory.degrees();
-
-    public static Pose startPose = P.of(7.1, 135, 0);
-    public static Pose resetPose = P.of(7.1, 135, 0);
+    public static Pose startPose = Poses.deg(7.1, 135, 0);
+    public static Pose resetPose = Poses.deg(7.1, 135, 0);
 
     @Override protected boolean isBlue()               { return true; }
     @Override protected Pose startPose()               { return startPose; }

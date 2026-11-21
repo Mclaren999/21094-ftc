@@ -1,9 +1,8 @@
 package org.firstinspires.ftc.teamcode.OpModes.Auto;
 
 import com.bylazar.configurables.annotations.Configurable;
-import com.pedropathing.api.PoseFactory;
 import com.pedropathing.follower.Follower;
-import com.pedropathing.math.Pose;
+import com.pedropathing.geometry.Pose;
 import com.qualcomm.hardware.lynx.LynxModule;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
@@ -12,11 +11,12 @@ import org.firstinspires.ftc.teamcode.OpModes.PoseStorage;
 import org.firstinspires.ftc.teamcode.Subsystems.IntakeSubsystem;
 import org.firstinspires.ftc.teamcode.Subsystems.ShooterSubsystem;
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
+import org.firstinspires.ftc.teamcode.pedroPathing.Poses;
 
 /**
  * Старт (30.4, 180), курс 0°. Турель всё время наводится сама.
  * Ждёт 3 с (маховик разгоняется) -> стреляет -> 5 с едет влево -> 2 с назад.
- * Направления — относительно робота. По путям не ездит, Foresight не нужен.
+ * Направления — относительно робота. По путям не ездит — только мощность на колёса.
  */
 @Configurable
 @Autonomous(name = "Shoot + Left + Back", group = "Autonomous")
@@ -51,8 +51,8 @@ public class ShootLeftBackAuto extends LinearOpMode {
         shooter = new ShooterSubsystem(hardwareMap);
         intake = new IntakeSubsystem(hardwareMap);
 
-        Pose start = PoseFactory.degrees().of(START_X, START_Y, START_HEADING_DEG);
-        follower.setPose(start);
+        Pose start = Poses.deg(START_X, START_Y, START_HEADING_DEG);
+        follower.setStartingPose(start);
 
         intake.off();
         intake.flowerC();
@@ -65,6 +65,9 @@ public class ShootLeftBackAuto extends LinearOpMode {
 
         waitForStart();
         if (isStopRequested()) return;
+
+        // Pedro 2: ручная езда мощностью (true — BRAKE, когда мощность 0)
+        follower.startTeleopDrive(true);
 
         // ---- 1. Маховик 2350, турель наводится, ждём 3 секунды ----
         shooter.setFixedVelocity(FLYWHEEL_VELOCITY);
@@ -85,9 +88,9 @@ public class ShootLeftBackAuto extends LinearOpMode {
         // ---- 5. Назад 2 секунды ----
         drive(BACK_MS, -DRIVE_POWER, 0);
 
-        follower.manual(0, 0, 0);
+        follower.setTeleOpDrive(0, 0, 0, true);
         follower.update();
-        PoseStorage.autoEndPose = follower.pose();
+        PoseStorage.autoEndPose = follower.getPose();
     }
 
     /**
@@ -97,12 +100,12 @@ public class ShootLeftBackAuto extends LinearOpMode {
     private void drive(long milliseconds, double forward, double strafe) {
         long deadline = System.currentTimeMillis() + milliseconds;
         while (opModeIsActive() && System.currentTimeMillis() < deadline) {
-            follower.manual(forward, strafe, 0);
+            follower.setTeleOpDrive(forward, strafe, 0, true); // robot-centric
             follower.update();
 
-            Pose pose = follower.pose();
+            Pose pose = follower.getPose();
             if (shooter.isFlywheelEnabled()) {
-                shooter.alignTurret(pose.x(), pose.y(), pose.heading(), IS_BLUE);
+                shooter.alignTurret(pose.getX(), pose.getY(), pose.getHeading(), IS_BLUE);
             }
             shooter.update();
             intake.update();

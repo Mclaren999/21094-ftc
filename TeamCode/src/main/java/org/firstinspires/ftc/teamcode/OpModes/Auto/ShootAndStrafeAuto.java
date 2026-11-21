@@ -2,7 +2,7 @@ package org.firstinspires.ftc.teamcode.OpModes.Auto;
 
 import com.bylazar.configurables.annotations.Configurable;
 import com.pedropathing.follower.Follower;
-import com.pedropathing.math.Pose;
+import com.pedropathing.geometry.Pose;
 import com.qualcomm.hardware.lynx.LynxModule;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
@@ -12,11 +12,12 @@ import org.firstinspires.ftc.teamcode.OpModes.TeleOp.BlueSoloDrive;
 import org.firstinspires.ftc.teamcode.Subsystems.IntakeSubsystem;
 import org.firstinspires.ftc.teamcode.Subsystems.ShooterSubsystem;
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
+import org.firstinspires.ftc.teamcode.pedroPathing.Poses;
 
 /**
  * Простой автоном: турель сама наводится, маховик 2350 тиков/с, серия выстрелов,
  * потом робот едет стрейфом вправо 1 секунду.
- * По путям не ездит — работает даже без настроенного Foresight.
+ * По путям не ездит — только мощность на колёса.
  */
 @Configurable
 @Autonomous(name = "Shoot + Strafe Right", group = "Autonomous")
@@ -51,7 +52,7 @@ public class ShootAndStrafeAuto extends LinearOpMode {
         intake = new IntakeSubsystem(hardwareMap);
 
         Pose start = BlueSoloDrive.startPose;
-        follower.setPose(start);
+        follower.setStartingPose(start);
 
         intake.off();
         intake.flowerC();
@@ -64,6 +65,9 @@ public class ShootAndStrafeAuto extends LinearOpMode {
 
         waitForStart();
         if (isStopRequested()) return;
+
+        // Pedro 2: ручная езда мощностью (true — BRAKE, когда мощность 0)
+        follower.startTeleopDrive(true);
 
         // ---- 1. Разгон маховика до 2350, турель наводится ----
         shooter.setFixedVelocity(FLYWHEEL_VELOCITY);
@@ -88,10 +92,10 @@ public class ShootAndStrafeAuto extends LinearOpMode {
 
         // ---- 4. Стрейф вправо 1 секунду ----
         waitMs(STRAFE_MS, -STRAFE_POWER);
-        follower.manual(0, 0, 0);
+        follower.setTeleOpDrive(0, 0, 0, true);
         follower.update();
 
-        PoseStorage.autoEndPose = follower.pose();
+        PoseStorage.autoEndPose = follower.getPose();
     }
 
     /** Ждёт, обновляя всё; strafePower — стрейф (+ влево, - вправо, 0 — стоим). */
@@ -105,12 +109,12 @@ public class ShootAndStrafeAuto extends LinearOpMode {
     private void updateAll(double strafePower) {
         // Robot-centric: только боковой ход относительно робота, без езды вперёд и поворота.
         // Знак как в TeleOp: там strafe = -left_stick_x, т.е. стик вправо даёт минус.
-        follower.manual(0, strafePower, 0);
+        follower.setTeleOpDrive(0, strafePower, 0, true); // robot-centric
         follower.update();
 
-        Pose pose = follower.pose();
+        Pose pose = follower.getPose();
         if (shooter.isFlywheelEnabled()) {
-            shooter.alignTurret(pose.x(), pose.y(), pose.heading(), IS_BLUE);
+            shooter.alignTurret(pose.getX(), pose.getY(), pose.getHeading(), IS_BLUE);
         }
         shooter.update();
         intake.update();

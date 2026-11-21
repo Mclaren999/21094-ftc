@@ -2,9 +2,8 @@ package org.firstinspires.ftc.teamcode.OpModes.TeleOp;
 //bismillah
 import com.bylazar.configurables.annotations.Configurable;
 import com.pedropathing.follower.Follower;
-import com.pedropathing.follower.ManualDrive;
-import com.pedropathing.math.Pose;
-import com.pedropathing.math.Velocity;
+import com.pedropathing.geometry.Pose;
+import com.pedropathing.math.Vector;
 import com.qualcomm.hardware.lynx.LynxModule;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 
@@ -102,12 +101,15 @@ public abstract class SoloDrive extends OpMode {
 
         telemetry.addLine(isBlue() ? "BLUE TeleOp Ready" : "RED TeleOp Ready");
         telemetry.addLine(afterAuto ? "Pose: from autonomous" : "Pose: startPose");
-        telemetry.addData("Pose", follower.pose());
+        telemetry.addData("Pose", follower.getPose());
         telemetry.update();
     }
 
     @Override
     public void start() {
+        // Pedro 2: включить ручную езду (true — BRAKE при отпущенных стиках)
+        follower.startTeleopDrive(true);
+
         trackingOn = true;
         shooter.setFlywheelEnabled(true);
         shooter.centerTurret();
@@ -146,15 +148,15 @@ public abstract class SoloDrive extends OpMode {
             holdingHeading = false; // курс сменился — запомнить заново
         }
 
-        // Field-centric. Для robot-centric: follower.manual(forward, strafe, turn).
-        // BRAKE при отпущенных стиках задан в Constants (manualBrakeMode).
-        follower.manual(ManualDrive.fieldCentric(
+        // Field-centric (isRobotCentric = false), оси повёрнуты под сторону водителя.
+        // Для robot-centric поставить true.
+        follower.setTeleOpDrive(
                 -gamepad1.left_stick_y,
                 -gamepad1.left_stick_x,
                 turnPower(-gamepad1.right_stick_x),
-                follower.pose().heading(),
+                false,
                 driverHeadingOffset()
-        ));
+        );
         follower.update();
     }
 
@@ -164,7 +166,7 @@ public abstract class SoloDrive extends OpMode {
      */
     private double turnPower(double stickTurn) {
         long now = System.currentTimeMillis();
-        double heading = follower.pose().heading();
+        double heading = follower.getPose().getHeading();
 
         if (!HEADING_HOLD || Math.abs(stickTurn) > TURN_DEADBAND) {
             lastTurnTimeMs = now;
@@ -186,7 +188,7 @@ public abstract class SoloDrive extends OpMode {
             return 0;
         }
 
-        double omega = follower.velocity().omega;
+        double omega = follower.getAngularVelocity();
         double power = HEADING_KP * error - HEADING_KD * omega;
         return Math.max(-1, Math.min(1, power));
     }
@@ -204,11 +206,11 @@ public abstract class SoloDrive extends OpMode {
 
         // При выключенном трекинге турель сохраняет последнее положение.
         if (trackingOn) {
-            Pose pose = follower.pose();
-            Velocity velocity = follower.velocity(); // в координатах поля
+            Pose pose = follower.getPose();
+            Vector velocity = follower.getVelocity(); // в координатах поля, дюймы/с
             shooter.alignTurret(
-                    pose.x(), pose.y(), pose.heading(),
-                    velocity.vx, velocity.vy, velocity.omega,
+                    pose.getX(), pose.getY(), pose.getHeading(),
+                    velocity.getXComponent(), velocity.getYComponent(), follower.getAngularVelocity(),
                     isBlue()
             );
         }
@@ -244,7 +246,7 @@ public abstract class SoloDrive extends OpMode {
     /* ================= TELEMETRY ================= */
 
     private void showTelemetry() {
-        telemetry.addData("Pose", follower.pose());
+        telemetry.addData("Pose", follower.getPose());
         telemetry.addData("Heading hold", holdingHeading
                 ? String.format("%.1f°", Math.toDegrees(targetHeading)) : "off");
         telemetry.addData("Tracking", trackingOn);

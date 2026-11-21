@@ -2,9 +2,9 @@
 //
 //import com.bylazar.configurables.annotations.Configurable;
 //import com.pedropathing.follower.Follower;
-//import com.pedropathing.math.Pose;
-//import com.pedropathing.math.Velocity;
-//import com.pedropathing.paths.Path;
+//import com.pedropathing.geometry.Pose;
+//import com.pedropathing.math.Vector;
+//import com.pedropathing.paths.PathChain;
 //import com.qualcomm.hardware.lynx.LynxModule;
 //import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 //import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
@@ -40,20 +40,11 @@
 //        shooter = new ShooterSubsystem(hardwareMap);
 //        intake = new IntakeSubsystem(hardwareMap);
 //
-//        follower.setPose(AutoPaths.START);
+//        follower.setStartingPose(AutoPaths.START);
 //
 //        intake.off();
 //        intake.update();
 //        shooter.centerTurret();
-//
-//        if (!Constants.isTuned()) {
-//            // Pedro 3: без результата Foresight Tuner робот по путям не поедет.
-//            telemetry.addLine("Foresight НЕ НАСТРОЕН: запустите Foresight Tuner");
-//            telemetry.addLine("и вставьте результат в Constants.foresightConfig");
-//            telemetry.update();
-//            waitForStart();
-//            return;
-//        }
 //
 //        telemetry.addLine("Auto Initialized");
 //        telemetry.addData("Alliance", BLUE ? "BLUE" : "RED");
@@ -71,24 +62,24 @@
 //
 //        // ---- Сбор ----
 //        intake.intake();
-//        followPath(AutoPaths.path11(), true, 1500);
+//        followPath(AutoPaths.path11(follower), true, 1500);
 //        waitMs(300);
 //
 //        // ---- Выстрел 2 ----
-//        followPath(AutoPaths.path22(), true, 2500);
+//        followPath(AutoPaths.path22(follower), true, 2500);
 //        waitMs(1000);
 //        shoot();
 //        intake.off();
 //
 //        // ---- Парковка ----
-//        followPath(AutoPaths.path33(), false, 1500);
-//        followPath(AutoPaths.path55(), false, 1500);
+//        followPath(AutoPaths.path33(follower), false, 1500);
+//        followPath(AutoPaths.path55(follower), false, 1500);
 //
 //        // ---- Конец: всё выключить, позицию отдать в TeleOp ----
 //        intake.off();
 //        intake.update();
 //        shooter.stop();
-//        PoseStorage.autoEndPose = follower.pose();
+//        PoseStorage.autoEndPose = follower.getPose();
 //    }
 //
 //    /* ================= ACTIONS ================= */
@@ -105,9 +96,8 @@
 //     * @param holdEnd   удерживать ли конечную точку после приезда
 //     * @param timeoutMs сколько ждать максимум, чтобы не зависнуть, если робот застрял
 //     */
-//    private void followPath(Path path, boolean holdEnd, long timeoutMs) {
-//        follower.holdEnd.set(holdEnd);
-//        follower.follow(path);
+//    private void followPath(PathChain path, boolean holdEnd, long timeoutMs) {
+//        follower.followPath(path, holdEnd);
 //        long deadline = System.currentTimeMillis() + timeoutMs;
 //
 //        while (opModeIsActive() && follower.isBusy() && System.currentTimeMillis() < deadline) {
@@ -132,20 +122,20 @@
 //        follower.update();
 //
 //        // Турель всё время наводится сама (с учётом развёрнутой установки).
-//        Pose pose = follower.pose();
-//        Velocity velocity = follower.velocity();
+//        Pose pose = follower.getPose();
+//        Vector velocity = follower.getVelocity();
 //        shooter.alignTurret(
-//                pose.x(), pose.y(), pose.heading(),
-//                velocity.vx, velocity.vy, velocity.omega,
+//                pose.getX(), pose.getY(), pose.getHeading(),
+//                velocity.getXComponent(), velocity.getYComponent(), follower.getAngularVelocity(),
 //                BLUE
 //        );
 //        shooter.update();
 //        intake.update();
 //
 //        // Сохраняем каждый цикл: позиция останется, даже если авто прервут.
-//        PoseStorage.autoEndPose = follower.pose();
+//        PoseStorage.autoEndPose = follower.getPose();
 //
-//        telemetry.addData("Pose", follower.pose());
+//        telemetry.addData("Pose", follower.getPose());
 //        telemetry.addData("Turret Position", shooter.getPos());
 //        telemetry.addData("Target ticks/s", ShooterSubsystem.vel);
 //        telemetry.addData("Flywheel ticks/s", shooter.getVel());
