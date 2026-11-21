@@ -32,21 +32,24 @@ public class ShooterSubsystem {
     public static double turretCenter = 0.5;
     // Куда смотрит турель при turretCenter, градусы от носа робота:
     // 0 — вперёд, 180 — назад (турель установлена развёрнутой)
-    public static double turretCenterHeadingDeg = 205;
+    public static double turretCenterHeadingDeg = 180;
     // Сколько градусов поворота турели дают позиции сервы 0..1.
     // Если больше 360 — у турели есть запас: она доворачивает дальше, а не крутится на полный оборот.
-    public static double turretRangeDeg = 410;
+    public static double turretRangeDeg = 180; // замер Turret Calibration, 21.11
+    // Цель у края хода: турель стоит в краю и перекидывается на другую сторону,
+    // только когда цель ушла за край больше чем на столько градусов (чтобы не дёргалась туда-сюда).
+    public static double turretFlipHysteresisDeg = 15;
 
     // Точки прицеливания
-    public static double blueGoalX = 83;
-    public static double redGoalX  = 60;
+    public static double blueGoalX = 57;
+    public static double redGoalX  = 57;
     public static double goalY1 = 60; // когда робот в нижней половине поля (y < 72)
     public static double goalY2 = 84; // когда робот в верхней половине поля
 
     // Скорость маховика по расстоянию до цели (тики/с).
     // Если в SHOT_TABLE есть хотя бы две строки, скорость берётся из таблицы
     // (линейная интерполяция между строками). Иначе: fSlope * расстояние + fIntercept.
-    public static double fIntercept = 2300;
+    public static double fIntercept = 2070;
     public static double fSlope = 0;
 
     // { расстояние до цели в дюймах, скорость маховика в тиках/с }, по возрастанию расстояния.
@@ -64,7 +67,7 @@ public class ShooterSubsystem {
     // если на ходу мяч уходит по направлению движения робота — уменьшить, если против — увеличить.
     public static double ballSpeed = 220;
     // Задержка сервы турели и цикла, с: на столько вперёд предсказывается позиция робота.
-    public static double aimLatencySec = 0.4;
+    public static double aimLatencySec = 0;
 
     // Регулятор маховика
     public static double P = 0.07;
@@ -96,8 +99,12 @@ public class ShooterSubsystem {
 
         turretLeft = hardwareMap.get(Servo.class, "leftTurret");
         turretRight = hardwareMap.get(Servo.class, "rightTurret");
-        turretLeft.setDirection(Servo.Direction.REVERSE);
-        turretRight.setDirection(Servo.Direction.REVERSE);
+
+        turretLeft.setDirection(Servo.Direction.FORWARD);
+        turretRight.setDirection(Servo.Direction.FORWARD);
+
+        turretLeft.setPosition(0.5);
+        turretRight.setPosition(0.5);
     }
 
     /* ================= TURRET ================= */
@@ -109,10 +116,8 @@ public class ShooterSubsystem {
 
     /** Ставит турель в середину хода сервы (при развёрнутой турели она смотрит назад). */
     public void centerTurret() {
-        angleToGoal = turretCenterHeadingDeg;
-        targetAngleDeg = turretCenter;
-        turretRelativeDeg = 0;
-        setTurretPosition(targetAngleDeg);
+        turretLeft.setPosition(0.5);
+        turretRight.setPosition(0.5);
     }
 
     /**
@@ -133,8 +138,7 @@ public class ShooterSubsystem {
      * @param vy      скорость робота по Y поля, дюймы/с
      * @param omega   угловая скорость робота, рад/с
      */
-    public void alignTurret(double x, double y, double heading,
-                            double vx, double vy, double omega, boolean blue) {
+    public void alignTurret(double x, double y, double heading, double vx, double vy, double omega, boolean blue) {
         // Где робот окажется, когда команда дойдёт до турели
         x += vx * aimLatencySec;
         y += vy * aimLatencySec;
@@ -152,7 +156,7 @@ public class ShooterSubsystem {
         double turretVx = vx - omega * offsetY;
         double turretVy = vy + omega * offsetX;
 
-        double goalX = blue ? blueGoalX : redGoalX;
+        double goalX = turretY < FIELD_MID_Y ? blueGoalX : redGoalX;
         double goalY = turretY < FIELD_MID_Y ? goalY1 : goalY2;
 
         // Виртуальная цель: мяч наследует скорость робота, поэтому целимся
@@ -173,7 +177,10 @@ public class ShooterSubsystem {
 
         // Угол, на который турель должна отвернуться от своего положения при turretCenter
         turretRelativeDeg = chooseTurretRelative(normalizeDegrees(angleToGoal - turretCenterHeadingDeg));
-        targetAngleDeg = clamp(turretCenter + turretRelativeDeg / turretRangeDeg, 0, 1);
+//        targetAngleDeg = clamp(turretCenter + turretRelativeDeg / turretRangeDeg, 0, 1);
+
+
+        targetAngleDeg = calculateServoPos(turretRelativeDeg);
         distanceToGoal = Math.hypot(aimX - turretX, aimY - turretY);
 
         setTurretPosition(targetAngleDeg);
@@ -187,6 +194,10 @@ public class ShooterSubsystem {
         update();
     }
 
+    public double calculateServoPos(double angle){
+        return -0.00244444*angle+0.493333;
+    }
+
     /* ================= FLYWHEEL ================= */
 
     public void setFlywheelEnabled(boolean enabled) {
@@ -198,8 +209,19 @@ public class ShooterSubsystem {
     }
 
     /** Вызывать каждый цикл: держит скорость маховика. */
+    /**
+     * Фиксированная скорость маховика (тики/с) вместо скорости по дистанции.
+     * 0 — снова считать по дистанции.
+     */
+    public void setFixedVelocity(double ticksPerSecond) {
+        fixedVelocity = ticksPerSecond;
+    }
+
+    private double fixedVelocity = 0;
+
     public void update() {
-        vel = flywheelEnabled ? (int) Math.max(0, velocityForDistance(distanceToGoal)) : 0;
+        double target = fixedVelocity > 0 ? fixedVelocity : velocityForDistance(distanceToGoal);
+        vel = flywheelEnabled ? (int) Math.max(0, target) : 0;
 
         flywheel.setPower(vel > 0 ? PVSController(P, V, S, threshold, vel, getVel()) : 0);
     }
@@ -279,7 +301,20 @@ public class ShooterSubsystem {
                 found = true;
             }
         }
-        return best; // если ни один не помещается, clamp ниже упрёт турель в край
+        if (!found) {
+            return relative; // ни один не помещается — clamp ниже упрёт турель в край
+        }
+
+        // Переброс на другую сторону (поворот больше чем на 180°): делаем его, только если цель
+        // ушла за край хода дальше гистерезиса. Иначе держим турель в ближнем краю.
+        if (Math.abs(best - turretRelativeDeg) > 180) {
+            double sameSide = best + (best < turretRelativeDeg ? 360 : -360); // тот же угол со стороны турели
+            double edge = sameSide > max ? max : min;
+            if (Math.abs(sameSide - edge) < turretFlipHysteresisDeg) {
+                return edge;
+            }
+        }
+        return best;
     }
 
     private static double normalizeDegrees(double angle) {

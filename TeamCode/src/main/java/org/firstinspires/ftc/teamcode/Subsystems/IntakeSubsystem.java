@@ -49,7 +49,7 @@ public class IntakeSubsystem {
 
     // TRANSFER: всё в одну сторону — мячи идут в шутер
     public static double TRANSFER_INTAKE_POWER   = -1;
-    public static double TRANSFER_TRANSFER_POWER = 1.0;
+    public static double TRANSFER_TRANSFER_POWER = 0.8;
 
     // REVERSE: всё в обратную сторону — мячи выбрасываются
     public static double REVERSE_INTAKE_POWER   = -1.0;

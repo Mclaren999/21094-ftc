@@ -14,7 +14,7 @@ public class BlueSoloDrive extends SoloDrive {
     private static final PoseFactory P = PoseFactory.degrees();
 
     public static Pose startPose = P.of(7.1, 135, 0);
-    public static Pose resetPose = P.of(7.4, 57.5, 0);
+    public static Pose resetPose = P.of(7.1, 135, 0);
 
     @Override protected boolean isBlue()               { return true; }
     @Override protected Pose startPose()               { return startPose; }
