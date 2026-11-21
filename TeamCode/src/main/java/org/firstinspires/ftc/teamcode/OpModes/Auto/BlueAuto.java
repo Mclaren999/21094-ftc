@@ -42,21 +42,21 @@ public class BlueAuto extends LinearOpMode {
 
     // Старт = точка первого выстрела (shoot)
     private static final Pose START = P.of(30.1881, 7.4679, 180);
-    private static final Pose INTAKE = P.of(10.6075, 7.8802, 180);
+    private static final Pose INTAKE = P.of(17.4578, 7.6495, 180);
 
-    private static final Pose GO_TO_SHOOT_START = P.of(10.6075, 7.8802, -100);
-    private static final Pose GO_TO_SHOOT = P.of(19.2442, 111.222, -100);
+    private static final Pose GO_TO_SHOOT_START = P.of(17.4578, 7.6495, -100);
+    private static final Pose GO_TO_SHOOT = P.of(17.3968, 98.1264, -100);
 
-    private static final Pose INTAKE_FLOWER_SHOOT_CONTROL = P.of(37.4884, 93.6423, 0);
-    private static final Pose INTAKE_FLOWER_SHOOT = P.of(37.5053, 117.1884, 89.9589);
+    private static final Pose INTAKE_FLOWER_SHOOT_CONTROL = P.of(37.2806, 73.1173, 0);
+    private static final Pose INTAKE_FLOWER_SHOOT = P.of(37.3023, 105.1767, 89.9612);
 
-    private static final Pose GO_TO_FLOWER_START = P.of(37.5053, 117.1884, 90);
+    private static final Pose GO_TO_FLOWER_START = P.of(37.3023, 105.1767, 90);
     private static final Pose GO_TO_FLOWER = P.of(23.6823, 36.3344, 180);
     private static final Pose INTAKE_FLOWER = P.of(13.1808, 36.1463, 180);
 
-    private static final Pose SHOOT_2 = P.of(18.392, 111.3234, -90);
+    private static final Pose SHOOT_2 = P.of(18.1415, 98.965, -90);
 
-    private static final Pose PARK = P.of(10.3385, 111.5488, -1.603);
+    private static final Pose PARK = P.of(7.2209, 97.9804, 5.152);
 
     /* ================= SUBSYSTEMS ================= */
 
