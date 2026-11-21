@@ -3,9 +3,12 @@ package org.firstinspires.ftc.teamcode.pedroPathing;
 import com.pedropathing.algorithm.Algorithm;
 import com.pedropathing.algorithm.Foresight;
 import com.pedropathing.algorithm.ForesightConfig;
+import com.pedropathing.controllers.Controller;
 import com.pedropathing.drivetrain.Drivetrain;
 import com.pedropathing.follower.Follower;
 import com.pedropathing.localization.Localizer;
+import com.pedropathing.math.Matrix;
+import com.pedropathing.math.Vector2D;
 import com.pedropathing.revhub.drivetrains.Mecanum;
 import com.pedropathing.revhub.drivetrains.MecanumConfig;
 import com.pedropathing.revhub.localizers.PinpointConfig;
@@ -54,11 +57,33 @@ public class Constants {
 
     /* ================= FORESIGHT (НЕ НАСТРОЕНО) ================= */
 
-    // TODO: запустить "Foresight Tuner" на роботе и вставить сюда его код:
-    //   public static ForesightConfig foresightConfig = new ForesightConfig(c -> { ... });
-    // Пока здесь null, автономы не поедут, а TeleOp работает.
-    public static ForesightConfig foresightConfig = null;
+    // Результат Foresight Tuner (AutoTune), 21.11.2026.
+    // Перетюнить, если поменялись вес робота, колёса или моторы.
+    public static ForesightConfig foresightConfig = new ForesightConfig(
+            c -> {
+                Controller primaryTranslationalForward = Controller.proportional(1.7731860350721977);
+                Controller secondaryTranslationalForward = Controller.proportional(0.6551448595557027);
+                Controller primaryTranslationalLateral = Controller.proportional(0.5060054455165391);
+                Controller secondaryTranslationalLateral = Controller.proportional(0.18695549140384246);
 
+                c.forwardTranslational.set(Controller.piecewise(secondaryTranslationalForward).put(2.5, primaryTranslationalForward));
+                c.strafeTranslational.set(Controller.piecewise(secondaryTranslationalLateral).put(2.5, primaryTranslationalLateral));
+
+                c.coast.set(Controller.proportionalFeedforward(0.012364950802041485));
+                c.brake.set(Controller.proportionalFeedforward(0.010510208181735262));
+
+                c.headingFeedback.set(Controller.proportional(5.5640585285038755));
+                c.headingBrakeCoefficients.set(Vector2D.cartesian(0.0653564325032162, 0.005968978781383945));
+
+                c.linearBrakeCoefficients.set(Matrix.diag(0.09748195799994455, 0.04839689763514247));
+                c.quadraticBrakeCoefficients.set(Matrix.diag(0.0012613219930042274, 0.0024681829027186583));
+
+                c.maxAchievableForwardVelocity.set(82.73315582879744);
+                c.maxAchievableStrafeVelocity.set(63.161851642374835);
+                c.naturalForwardDeceleration.set(32.04932982110785);
+                c.naturalStrafeDeceleration.set(62.55689881279272);
+            }
+    );
     /** true, когда Foresight настроен и роботу можно ездить по путям. */
     public static boolean isTuned() {
         return foresightConfig != null;
