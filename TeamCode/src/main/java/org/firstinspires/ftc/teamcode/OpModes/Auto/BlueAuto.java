@@ -17,7 +17,7 @@ import org.firstinspires.ftc.teamcode.Subsystems.ShooterSubsystem;
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
 
 /**
- * Автоном синего альянса: 5 серий выстрелов и парковка.
+ * Автоном синего альянса: 4 серии выстрелов и парковка (path7).
  * Турель всё время наводится сама (alignTurret), маховик держит скорость по дистанции.
  */
 @Configurable
@@ -40,24 +40,23 @@ public class BlueAuto extends LinearOpMode {
 
     private static final PoseFactory P = PoseFactory.degrees();
 
-    private static final Pose START = P.of(29.8336, 6.6034, 180);
-    private static final Pose INTAKE = P.of(6.1015, 6.7843, 180);
+    // Старт = точка первого выстрела (shoot)
+    private static final Pose START = P.of(30.1881, 7.4679, 180);
+    private static final Pose INTAKE = P.of(10.6075, 7.8802, 180);
 
-    private static final Pose GO_TO_SHOOT_START = P.of(6.1015, 6.7843, -100);
-    private static final Pose GO_TO_SHOOT = P.of(30.3758, 118.2687, -100);
+    private static final Pose GO_TO_SHOOT_START = P.of(10.6075, 7.8802, -100);
+    private static final Pose GO_TO_SHOOT = P.of(19.2442, 111.222, -100);
 
-    private static final Pose INTAKE_FLOWER_SHOOT_CONTROL = P.of(46.9841, 97.8978, 0);
-    private static final Pose INTAKE_FLOWER_SHOOT = P.of(47.0406, 125.4825, 90);
+    private static final Pose INTAKE_FLOWER_SHOOT_CONTROL = P.of(37.4884, 93.6423, 0);
+    private static final Pose INTAKE_FLOWER_SHOOT = P.of(37.5053, 117.1884, 89.9589);
 
-    private static final Pose GO_TO_FLOWER = P.of(21.5909, 46, 180);
-    private static final Pose INTAKE_FLOWER = P.of(13.206, 46, 180);
+    private static final Pose GO_TO_FLOWER_START = P.of(37.5053, 117.1884, 90);
+    private static final Pose GO_TO_FLOWER = P.of(23.6823, 36.3344, 180);
+    private static final Pose INTAKE_FLOWER = P.of(13.1808, 36.1463, 180);
 
-    private static final Pose SHOOT_2 = P.of(30.736, 119.0509, -90);
+    private static final Pose SHOOT_2 = P.of(18.392, 111.3234, -90);
 
-    private static final Pose INTAKE_SHOOT_CONTROL = P.of(85.2239, 99.7828, 0);
-    private static final Pose INTAKE_SHOOT = P.of(56.7606, 20.9021, -109.8415);
-
-    private static final Pose PARK = P.of(8.2221, 91.6222, -55.5364);
+    private static final Pose PARK = P.of(10.3385, 111.5488, -1.603);
 
     /* ================= SUBSYSTEMS ================= */
 
@@ -126,12 +125,7 @@ public class BlueAuto extends LinearOpMode {
         follow(shoot2Path());
         aimAndShoot(SHOOT_MS);
 
-        // ---- 7. С интейком на точку intake + shoot: пятая серия ----
-        intake.intake();
-        follow(intakeShootPath());
-        aimAndShoot(SHOOT_MS);
-
-        // ---- 8. Всё выключить и на парковку ----
+        // ---- 7. Всё выключить и на парковку ----
         intake.off();
         shooter.stop();
         follow(parkPath());
@@ -219,7 +213,7 @@ public class BlueAuto extends LinearOpMode {
     }
 
     private static Path goToFlowerPath() {
-        return Paths.line(INTAKE_FLOWER_SHOOT, GO_TO_FLOWER).linear(INTAKE_FLOWER_SHOOT, GO_TO_FLOWER);
+        return Paths.line(GO_TO_FLOWER_START, GO_TO_FLOWER).linear(GO_TO_FLOWER_START, GO_TO_FLOWER);
     }
 
     private static Path intakeFlowerPath() {
@@ -231,11 +225,7 @@ public class BlueAuto extends LinearOpMode {
         return Paths.line(INTAKE_FLOWER, SHOOT_2).linear(INTAKE_FLOWER, SHOOT_2);
     }
 
-    private static Path intakeShootPath() {
-        return Paths.curve(SHOOT_2, INTAKE_SHOOT_CONTROL, INTAKE_SHOOT).tangent();
-    }
-
     private static Path parkPath() {
-        return Paths.line(INTAKE_SHOOT, PARK).reverseTangent();
+        return Paths.line(SHOOT_2, PARK).reverseTangent();
     }
 }
