@@ -37,8 +37,8 @@ public class IntakeSubsystem {
     // Не final — чтобы их можно было менять через Panels (@Configurable)
 
     // Flower servo
-    public static double FLOWER_CLOSED = 1.0;
-    public static double FLOWER_OPEN   = 0.0;
+    public static double FLOWER_CLOSED = 0;
+    public static double FLOWER_OPEN   = 1;
 
     // Знак мощности: + = мячи едут внутрь / к шутеру, - = наружу.
     // Если на роботе мотор крутит не туда, меняйте его Direction ниже, а не эти числа.

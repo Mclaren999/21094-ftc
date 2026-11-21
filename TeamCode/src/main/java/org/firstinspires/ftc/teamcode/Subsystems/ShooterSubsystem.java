@@ -3,6 +3,7 @@ package org.firstinspires.ftc.teamcode.Subsystems;
 import com.bylazar.configurables.annotations.Configurable;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
+import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.qualcomm.robotcore.hardware.Servo;
 
@@ -24,17 +25,17 @@ public class ShooterSubsystem {
     // Не final — чтобы их можно было менять через Panels (@Configurable)
 
     // Смещение турели относительно центра робота
-    public static double turretOffsetX = -3;
+    public static double turretOffsetX = -2.6;
     public static double turretOffsetY = 0;
 
     // Позиция сервы в середине хода
     public static double turretCenter = 0.5;
     // Куда смотрит турель при turretCenter, градусы от носа робота:
     // 0 — вперёд, 180 — назад (турель установлена развёрнутой)
-    public static double turretCenterHeadingDeg = 180;
+    public static double turretCenterHeadingDeg = 205;
     // Сколько градусов поворота турели дают позиции сервы 0..1.
-    // Больше 360 — у турели есть запас: она доворачивает дальше, а не крутится на полный оборот.
-    public static double turretRangeDeg = 440;
+    // Если больше 360 — у турели есть запас: она доворачивает дальше, а не крутится на полный оборот.
+    public static double turretRangeDeg = 410;
 
     // Точки прицеливания
     public static double blueGoalX = 83;
@@ -45,7 +46,7 @@ public class ShooterSubsystem {
     // Скорость маховика по расстоянию до цели (тики/с).
     // Если в SHOT_TABLE есть хотя бы две строки, скорость берётся из таблицы
     // (линейная интерполяция между строками). Иначе: fSlope * расстояние + fIntercept.
-    public static double fIntercept = 2070;
+    public static double fIntercept = 2300;
     public static double fSlope = 0;
 
     // { расстояние до цели в дюймах, скорость маховика в тиках/с }, по возрастанию расстояния.
@@ -63,13 +64,13 @@ public class ShooterSubsystem {
     // если на ходу мяч уходит по направлению движения робота — уменьшить, если против — увеличить.
     public static double ballSpeed = 220;
     // Задержка сервы турели и цикла, с: на столько вперёд предсказывается позиция робота.
-    public static double aimLatencySec = 0.0;
+    public static double aimLatencySec = 0.4;
 
     // Регулятор маховика
-    public static double P = 0.003;
-    public static double V = 0.00032;
-    public static double S = 0.05;
-    public static int threshold = 80;
+    public static double P = 0.07;
+    public static double V = 0.00033;
+    public static double S = 0.6;
+    public static int threshold = 1000;
 
     private static final double FIELD_MID_Y = 72;
 
@@ -95,8 +96,8 @@ public class ShooterSubsystem {
 
         turretLeft = hardwareMap.get(Servo.class, "leftTurret");
         turretRight = hardwareMap.get(Servo.class, "rightTurret");
-        turretLeft.setDirection(Servo.Direction.FORWARD);
-        turretRight.setDirection(Servo.Direction.FORWARD);
+        turretLeft.setDirection(Servo.Direction.REVERSE);
+        turretRight.setDirection(Servo.Direction.REVERSE);
     }
 
     /* ================= TURRET ================= */

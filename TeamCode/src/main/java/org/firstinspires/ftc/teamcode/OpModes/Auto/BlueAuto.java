@@ -1,5 +1,5 @@
 package org.firstinspires.ftc.teamcode.OpModes.Auto;
-
+//bismillah
 import com.bylazar.configurables.annotations.Configurable;
 import com.pedropathing.api.Paths;
 import com.pedropathing.api.PoseFactory;
@@ -21,7 +21,7 @@ import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
  * Турель всё время наводится сама (alignTurret), маховик держит скорость по дистанции.
  */
 @Configurable
-@Autonomous(name = "Blue Auto", group = "Autonomous")
+@Autonomous(name = "Autooon ArlKarl", group = "Autonomous")
 public class BlueAuto extends LinearOpMode {
 
     private static final boolean IS_BLUE = true;

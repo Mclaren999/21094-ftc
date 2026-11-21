@@ -8,13 +8,13 @@ import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 
 /** TeleOp синего альянса. Вся логика — в SoloDrive. */
 @Configurable
-@TeleOp(name = "AAABlue Solo TeleOp", group = "TeleOp")
+@TeleOp(name = "Bismillah Inshallah ", group = "TeleOp")
 public class BlueSoloDrive extends SoloDrive {
 
     private static final PoseFactory P = PoseFactory.degrees();
 
-    public static Pose startPose = P.of(6, 135, 0);
-    public static Pose resetPose = P.of(5.4, 38, 0);
+    public static Pose startPose = P.of(7.1, 135, 0);
+    public static Pose resetPose = P.of(7.4, 57.5, 0);
 
     @Override protected boolean isBlue()               { return true; }
     @Override protected Pose startPose()               { return startPose; }
