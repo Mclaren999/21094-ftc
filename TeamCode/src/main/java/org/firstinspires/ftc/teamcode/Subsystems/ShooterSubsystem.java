@@ -28,14 +28,15 @@ public class ShooterSubsystem {
     public static double turretOffsetX = -2.6;
     public static double turretOffsetY = 0;
 
-    // Позиция сервы в середине хода
-    public static double turretCenter = 0.5;
+    // Позиция сервы, когда турель смотрит строго назад (turretCenterHeadingDeg). Из формулы: 0.493333.
+    public static double turretCenter = 0.493333;
     // Куда смотрит турель при turretCenter, градусы от носа робота:
     // 0 — вперёд, 180 — назад (турель установлена развёрнутой)
     public static double turretCenterHeadingDeg = 180;
-    // Сколько градусов поворота турели дают позиции сервы 0..1.
-    // Если больше 360 — у турели есть запас: она доворачивает дальше, а не крутится на полный оборот.
-    public static double turretRangeDeg = 180; // замер Turret Calibration, 21.11
+    // Сколько градусов поворота турели дают позиции сервы 0..1. Из формулы: 1 / 0.00244444 = 409.09.
+    // Больше 360 — есть запас: турель доворачивает до ~±205°, а не крутится на полный оборот на краю.
+    // Знак: поворот на +угол (против часовой) уменьшает позицию сервы.
+    public static double turretRangeDeg = 409.09;
     // Цель у края хода: турель стоит в краю и перекидывается на другую сторону,
     // только когда цель ушла за край больше чем на столько градусов (чтобы не дёргалась туда-сюда).
     public static double turretFlipHysteresisDeg = 15;
@@ -123,6 +124,7 @@ public class ShooterSubsystem {
         turretRelativeDeg = 0;
         angleToGoal = turretCenterHeadingDeg;
         targetAngleDeg = 0.5;
+        turretRelativeDeg = (turretCenter - 0.5) * turretRangeDeg; // угол, соответствующий 0.5
         setTurretPosition(0.5);
     }
 
@@ -183,9 +185,6 @@ public class ShooterSubsystem {
 
         // Угол, на который турель должна отвернуться от своего положения при turretCenter
         turretRelativeDeg = chooseTurretRelative(normalizeDegrees(angleToGoal - turretCenterHeadingDeg));
-//        targetAngleDeg = clamp(turretCenter + turretRelativeDeg / turretRangeDeg, 0, 1);
-
-
         targetAngleDeg = calculateServoPos(turretRelativeDeg);
         distanceToGoal = Math.hypot(aimX - turretX, aimY - turretY);
 
@@ -200,8 +199,12 @@ public class ShooterSubsystem {
         update();
     }
 
-    public double calculateServoPos(double angle){
-        return -0.00244444*angle+0.493333;
+    /**
+     * Позиция сервы для поворота турели на angle градусов от положения "назад".
+     * Ваша формула: -0.00244444 * angle + 0.493333 (= turretCenter - angle / turretRangeDeg).
+     */
+    public double calculateServoPos(double angle) {
+        return clamp(turretCenter - angle / turretRangeDeg, 0, 1);
     }
 
     /* ================= FLYWHEEL ================= */
@@ -295,8 +298,9 @@ public class ShooterSubsystem {
      * так она не делает полный оборот, когда цель проходит через край хода.
      */
     private double chooseTurretRelative(double relative) {
-        double min = -turretCenter * turretRangeDeg;       // поворот при позиции сервы 0
-        double max = (1 - turretCenter) * turretRangeDeg;  // поворот при позиции сервы 1
+        // Знак у формулы минус: позиция 1 — это самый большой поворот по часовой, 0 — против часовой.
+        double min = -(1 - turretCenter) * turretRangeDeg; // поворот при позиции сервы 1 (≈ -207°)
+        double max = turretCenter * turretRangeDeg;        // поворот при позиции сервы 0 (≈ +202°)
 
         double best = relative;
         boolean found = false;
