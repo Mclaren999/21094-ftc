@@ -42,8 +42,9 @@ public class ShooterSubsystem {
     public static double turretFlipHysteresisDeg = 15;
 
     // Точки прицеливания
+    // X цели по альянсу. Красная — зеркало синей относительно x = 72 (144 - 57 = 87).
     public static double blueGoalX = 57;
-    public static double redGoalX  = 57;
+    public static double redGoalX  = 87;
     public static double goalY1 = 60; // когда робот в нижней половине поля (y < 72)
     public static double goalY2 = 84; // когда робот в верхней половине поля
 
@@ -70,11 +71,15 @@ public class ShooterSubsystem {
     // Задержка сервы турели и цикла, с: на столько вперёд предсказывается позиция робота.
     public static double aimLatencySec = 0;
 
-    // Регулятор маховика
-    public static double P = 0.07;
+    // Регулятор маховика.
+    //   V — мощность на 1 тик/с (V = 1 / макс. скорость; 0.00033 -> ~3000 тиков/с на полной мощности)
+    //   S — мощность на трение, P — поправка на ошибку скорости
+    //   threshold — если ошибка больше, мотор просто даёт 1.0 (разгон) или 0 (выбег)
+    // Было P = 0.07, S = 0.6, threshold = 1000: это почти "вкл/выкл", скорость прыгала вокруг цели.
+    public static double P = 0.002;
     public static double V = 0.00033;
-    public static double S = 0.6;
-    public static int threshold = 1000;
+    public static double S = 0.05;
+    public static int threshold = 200;
     // Насколько скорость может отличаться от цели, чтобы считать маховик готовым (isReady), тики/с.
     // Отдельно от threshold: с threshold = 1000 "готов" срабатывал, когда до цели не хватало 1000.
     public static int readyTolerance = 100;
@@ -164,7 +169,7 @@ public class ShooterSubsystem {
         double turretVx = vx - omega * offsetY;
         double turretVy = vy + omega * offsetX;
 
-        double goalX = turretY < FIELD_MID_Y ? blueGoalX : redGoalX;
+        double goalX = blue ? blueGoalX : redGoalX;
         double goalY = turretY < FIELD_MID_Y ? goalY1 : goalY2;
 
         // Виртуальная цель: мяч наследует скорость робота, поэтому целимся
