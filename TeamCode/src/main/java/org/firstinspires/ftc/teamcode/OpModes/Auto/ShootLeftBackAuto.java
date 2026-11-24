@@ -49,6 +49,7 @@ public class ShootLeftBackAuto extends LinearOpMode {
 
         follower = Constants.createFollower(hardwareMap);
         shooter = new ShooterSubsystem(hardwareMap);
+        shooter.resetTurretEncoder(); // турель при init должна смотреть назад (ноль)
         intake = new IntakeSubsystem(hardwareMap);
 
         Pose start = Poses.deg(START_X, START_Y, START_HEADING_DEG);

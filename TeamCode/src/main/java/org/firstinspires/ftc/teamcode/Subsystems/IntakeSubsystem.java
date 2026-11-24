@@ -37,22 +37,27 @@ public class IntakeSubsystem {
     // Не final — чтобы их можно было менять через Panels (@Configurable)
 
     // Flower servo
-    public static double FLOWER_CLOSED = 0;
-    public static double FLOWER_OPEN   = 1;
 
+
+    // Flower servo
+    public static double FLOWER_CLOSED = 1.0;
+    public static double FLOWER_OPEN   = 0.0;
     // Знак мощности: + = мячи едут внутрь / к шутеру, - = наружу.
     // Если на роботе мотор крутит не туда, меняйте его Direction ниже, а не эти числа.
 
     // INTAKE: интейк тянет внутрь, transfer крутится назад и не пускает мячи к шутеру
-    public static double INTAKE_INTAKE_POWER   = -1.0;
-    public static double INTAKE_TRANSFER_POWER = -1.0;
 
-    // TRANSFER: всё в одну сторону — мячи идут в шутер
-    public static double TRANSFER_INTAKE_POWER   = -1;
-    public static double TRANSFER_TRANSFER_POWER = 0.8;
 
-    // REVERSE: всё в обратную сторону — мячи выбрасываются
-    public static double REVERSE_INTAKE_POWER   = 1.0;  // противоположно INTAKE_INTAKE_POWER (-1), иначе реверс = обычный интейк
+    // INTAKE
+    public static double INTAKE_INTAKE_POWER   = 1.0;
+    public static double INTAKE_TRANSFER_POWER = -0; // transfer держит мячи, пока собираем
+
+    // TRANSFER
+    public static double TRANSFER_INTAKE_POWER   = 1.0;
+    public static double TRANSFER_TRANSFER_POWER = 1.0;
+
+    // REVERSE
+    public static double REVERSE_INTAKE_POWER   = -1.0;
     public static double REVERSE_TRANSFER_POWER = -1.0;
 
     /* ================= INIT ================= */

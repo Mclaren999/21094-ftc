@@ -71,6 +71,7 @@ public class BlueAuto extends LinearOpMode {
 
         follower = Constants.createFollower(hardwareMap);
         shooter = new ShooterSubsystem(hardwareMap);
+        shooter.resetTurretEncoder(); // турель при init должна смотреть назад (ноль)
         intake = new IntakeSubsystem(hardwareMap);
 
         follower.setStartingPose(START);

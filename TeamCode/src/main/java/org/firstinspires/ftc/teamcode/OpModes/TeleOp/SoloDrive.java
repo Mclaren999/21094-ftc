@@ -21,8 +21,10 @@ import java.util.function.BooleanSupplier;
  *
  * Управление (gamepad1):
  *   стики — езда (field-centric)      L3 — сброс позиции
- *   □ (квадрат) — трекинг турели вкл/выкл   R1 — маховик вкл/выкл
- *   ✕ (крестик) — турель в 0.5 (трекинг выключается, □ — включить снова)
+ *   D-pad ↑ — переключить field-centric / robot-centric
+ *   Турель наводится на цель сама (мотор, с учётом движения робота).
+ *     △ (треугольник) — выключить автоприцел и поставить турель в ноль / включить обратно
+ *   R1 — маховик вкл/выкл
  *   R2 — интейк | L2 — трансфер | L1 — реверс
  *   R3 — flower открыть/закрыть
  *
@@ -69,15 +71,21 @@ public abstract class SoloDrive extends OpMode {
     private IntakeSubsystem intake;
     private Follower follower;
 
-    private boolean trackingOn = false;
+    private boolean autoAim = true; // false — турель стоит в нуле
 
     private double targetHeading = 0;     // курс, который держим, рад
     private boolean holdingHeading = false;
     private long lastTurnTimeMs = 0;
 
+    private boolean robotCentric = false; // false — field-centric, true — robot-centric
+
+    /** Сколько мс повторять setPose после L3, пока Pinpoint не примет новую позицию. */
+    public static long RESET_REPEAT_MS = 100;
+    private long resetUntilMs = 0;
+
     private final Button resetButton    = new Button(() -> gamepad1.left_stick_button);
-    private final Button trackingButton = new Button(() -> gamepad1.x);     // PS5: квадрат
-    private final Button centerButton   = new Button(() -> gamepad1.cross); // PS5: крестик
+    private final Button driveModeButton = new Button(() -> gamepad1.dpad_up);
+    private final Button autoAimButton  = new Button(() -> gamepad1.triangle);
     private final Button shooterButton  = new Button(() -> gamepad1.right_bumper);
     private final Button flowerButton   = new Button(() -> gamepad1.right_stick_button);
 
@@ -99,6 +107,12 @@ public abstract class SoloDrive extends OpMode {
         follower.setStartingPose(afterAuto ? PoseStorage.autoEndPose : startPose());
         PoseStorage.autoEndPose = null; // чтобы следующий запуск без автонома взял startPose
 
+        // После автонома энкодер турели уже отсчитан от его нуля — не трогаем.
+        // Без автонома турель должна стоять в нуле (назад) при init.
+        if (!afterAuto) {
+            shooter.resetTurretEncoder();
+        }
+
         telemetry.addLine(isBlue() ? "BLUE TeleOp Ready" : "RED TeleOp Ready");
         telemetry.addLine(afterAuto ? "Pose: from autonomous" : "Pose: startPose");
         telemetry.addData("Pose", follower.getPose());
@@ -110,9 +124,8 @@ public abstract class SoloDrive extends OpMode {
         // Pedro 2: включить ручную езду (true — BRAKE при отпущенных стиках)
         follower.startTeleopDrive(true);
 
-        trackingOn = true;
         shooter.setFlywheelEnabled(true);
-        shooter.centerTurret();
+        autoAim = true;
     }
 
     @Override
@@ -143,19 +156,31 @@ public abstract class SoloDrive extends OpMode {
     /* ================= CONTROLS ================= */
 
     private void drive() {
+        // Pinpoint применяет новую позицию не сразу: первое чтение после setPose
+        // может вернуть старую. Поэтому повторяем setPose RESET_REPEAT_MS мс.
+        long now = System.currentTimeMillis();
         if (resetButton.wasPressed()) {
+            resetUntilMs = now + RESET_REPEAT_MS;
+        }
+        if (now < resetUntilMs) {
             follower.setPose(resetPose());
             holdingHeading = false; // курс сменился — запомнить заново
+            lastTurnTimeMs = now;   // не запоминать курс, пока сброс не применился
         }
 
-        // Field-centric (isRobotCentric = false), оси повёрнуты под сторону водителя.
-        // Для robot-centric поставить true.
+        // D-pad вверх — переключение field-centric / robot-centric.
+        if (driveModeButton.wasPressed()) {
+            robotCentric = !robotCentric;
+        }
+
+        // Field-centric: оси повёрнуты под сторону водителя.
+        // Robot-centric: «вперёд» на стике — вперёд робота, смещение не нужно.
         follower.setTeleOpDrive(
                 -gamepad1.left_stick_y,
                 -gamepad1.left_stick_x,
                 turnPower(-gamepad1.right_stick_x),
-                false,
-                driverHeadingOffset()
+                robotCentric,
+                robotCentric ? 0 : driverHeadingOffset()
         );
         follower.update();
     }
@@ -193,19 +218,13 @@ public abstract class SoloDrive extends OpMode {
         return Math.max(-1, Math.min(1, power));
     }
 
+    /** Автоприцел турели по позиции и скорости робота. △ — выкл (турель в ноль) / вкл. */
     private void aim() {
-        if (trackingButton.wasPressed()) {
-            trackingOn = !trackingOn;
+        if (autoAimButton.wasPressed()) {
+            autoAim = !autoAim;
         }
 
-        // Крестик: турель в середину хода (0.5). Трекинг выключаем, иначе он сразу её развернёт.
-        if (centerButton.wasPressed()) {
-            trackingOn = false;
-            shooter.centerTurret(); // позиция turretCenter = 0.5; заодно сбрасывает состояние наведения
-        }
-
-        // При выключенном трекинге турель сохраняет последнее положение.
-        if (trackingOn) {
+        if (autoAim) {
             Pose pose = follower.getPose();
             Vector velocity = follower.getVelocity(); // в координатах поля, дюймы/с
             shooter.alignTurret(
@@ -213,6 +232,8 @@ public abstract class SoloDrive extends OpMode {
                     velocity.getXComponent(), velocity.getYComponent(), follower.getAngularVelocity(),
                     isBlue()
             );
+        } else {
+            shooter.centerTurret();
         }
     }
 
@@ -246,18 +267,22 @@ public abstract class SoloDrive extends OpMode {
     /* ================= TELEMETRY ================= */
 
     private void showTelemetry() {
+        telemetry.addData("Drive mode", robotCentric ? "ROBOT-centric" : "FIELD-centric");
         telemetry.addData("Pose", follower.getPose());
         telemetry.addData("Heading hold", holdingHeading
                 ? String.format("%.1f°", Math.toDegrees(targetHeading)) : "off");
-        telemetry.addData("Tracking", trackingOn);
         telemetry.addData("Shooter On", shooter.isFlywheelEnabled());
 
-        telemetry.addData("Turret Position", shooter.getPos());
-        telemetry.addData("Turret Angle", shooter.getAngle());
+        if (shooter.isTurretFault()) {
+            telemetry.addLine("!!! ТУРЕЛЬ: АВАРИЯ — ушла за ход, мотор выключен. Проверьте turretReversed / энкодер");
+        }
+        telemetry.addData("Auto aim", autoAim);
+        telemetry.addData("Turret target / actual", "%.1f° / %.1f°",
+                shooter.getPos(), shooter.getTurretDeg());
+        telemetry.addData("Distance to goal", shooter.getDistance());
 
         telemetry.addData("Target ticks/s", ShooterSubsystem.vel);
         telemetry.addData("Flywheel ticks/s", shooter.getVel());
-        telemetry.addData("Distance to goal", shooter.getDistance());
         telemetry.addData("Ready to shoot", shooter.isReady());
 
         telemetry.addData("Intake", intake.getState());

@@ -7,49 +7,55 @@ import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import org.firstinspires.ftc.teamcode.Subsystems.ShooterSubsystem;
 
 /**
- * Калибровка турели: вручную крутим серву и записываем позиции.
+ * Калибровка турели на моторе.
  *
- * gamepad1:
- *   dpad влево/вправо — позиция -/+ 0.005     LB/RB — позиция -/+ 0.05
- *   A — поставить 0.5
- *   X — запомнить "смотрит строго НАЗАД"
- *   Y — запомнить "смотрит строго ВЛЕВО" (90° от носа)
- *   B — запомнить "смотрит строго ВПРАВО"
+ * ШАГ 1 — тики на оборот (режим "РУКАМИ", включён при старте, мотор свободно крутится):
+ *   1. Поставить турель строго НАЗАД и нажать X (ноль энкодера).
+ *   2. Повернуть турель рукой ровно на один оборот ВЛЕВО (против часовой, если смотреть сверху).
+ *   3. Тики должны стать положительными. Если отрицательные — поменять turretReversed.
+ *   4. Число "-> turretTicksPerRev" вписать в ShooterSubsystem.
  *
- * Робот стоит, моторы езды не используются. Направление проще всего проверять
- * по линиям на плитках поля или угольником.
+ * ШАГ 2 — проверка регулятора (A — переключить режим на "МОТОРОМ"):
+ *   dpad влево/вправо — цель +/-90°   LB/RB — цель +/-10°   Y — цель 0°
+ *   kP / kD / kS подбираются в Panels, пока турель не встаёт быстро и без раскачки.
+ *
+ * Робот стоит, моторы езды не используются.
  */
 @Configurable
 @TeleOp(name = "Turret Calibration", group = "Tuning")
 public class TurretCalibration extends OpMode {
 
     private ShooterSubsystem shooter;
-    public static double position = 0;
+    public static double targetDeg = 0;
 
-    private double backPos = Double.NaN;
-    private double leftPos = Double.NaN;
-    private double rightPos = Double.NaN;
-
-    private boolean lastLeft, lastRight, lastLb, lastRb, lastA, lastX, lastY, lastB;
+    private boolean motorMode = false;
+    private boolean lastLeft, lastRight, lastLb, lastRb, lastA, lastX, lastY;
 
     @Override
     public void init() {
         shooter = new ShooterSubsystem(hardwareMap);
-        shooter.setTurretPosition(position);
+        shooter.resetTurretEncoder();
+        shooter.setTurretBrake(false);
+        targetDeg = 0;
     }
 
     @Override
     public void loop() {
-        if (pressed(gamepad1.dpad_left, lastLeft))   position -= 0.005;
-        if (pressed(gamepad1.dpad_right, lastRight)) position += 0.005;
-        if (pressed(gamepad1.left_bumper, lastLb))   position -= 0.05;
-        if (pressed(gamepad1.right_bumper, lastRb))  position += 0.05;
-        if (pressed(gamepad1.a, lastA))              position = 0.5;
-        position = Math.max(0, Math.min(1, position));
-
-        if (pressed(gamepad1.x, lastX)) backPos = position;
-        if (pressed(gamepad1.y, lastY)) leftPos = position;
-        if (pressed(gamepad1.b, lastB)) rightPos = position;
+        if (pressed(gamepad1.a, lastA)) {
+            motorMode = !motorMode;
+            shooter.setTurretBrake(motorMode);
+            targetDeg = shooter.getTurretDeg(); // не дёргаться при переключении
+        }
+        if (pressed(gamepad1.x, lastX)) {
+            shooter.resetTurretEncoder();
+            targetDeg = 0;
+        }
+        if (pressed(gamepad1.dpad_left, lastLeft))  targetDeg += 90;
+        if (pressed(gamepad1.dpad_right, lastRight)) targetDeg -= 90;
+        if (pressed(gamepad1.left_bumper, lastLb))  targetDeg += 10;
+        if (pressed(gamepad1.right_bumper, lastRb)) targetDeg -= 10;
+        if (pressed(gamepad1.y, lastY))             targetDeg = 0;
+        targetDeg = Math.max(ShooterSubsystem.turretMinDeg, Math.min(ShooterSubsystem.turretMaxDeg, targetDeg));
 
         lastLeft = gamepad1.dpad_left;
         lastRight = gamepad1.dpad_right;
@@ -58,36 +64,43 @@ public class TurretCalibration extends OpMode {
         lastA = gamepad1.a;
         lastX = gamepad1.x;
         lastY = gamepad1.y;
-        lastB = gamepad1.b;
 
-        shooter.setTurretPosition(position);
+        if (motorMode) {
+            shooter.setTurretAngle(targetDeg);
+            shooter.update(); // маховик выключен — крутится только турель
+        } else {
+            shooter.stop();
+        }
 
-        telemetry.addData("Servo position", "%.3f", position);
-        telemetry.addLine();
-        telemetry.addData("НАЗАД  (X)", fmt(backPos));
-        telemetry.addData("ВЛЕВО  (Y)", fmt(leftPos));
-        telemetry.addData("ВПРАВО (B)", fmt(rightPos));
-
-        if (!Double.isNaN(leftPos) && !Double.isNaN(rightPos)) {
-            double range = 180.0 / Math.abs(rightPos - leftPos);
+        int ticks = shooter.getTurretTicks();
+        if (shooter.isTurretFault()) {
+            telemetry.addLine("!!! АВАРИЯ: турель ушла за ход, мотор выключен — поменяйте turretReversed и перезапустите");
+        }
+        telemetry.addData("Режим (A)", motorMode ? "МОТОРОМ" : "РУКАМИ");
+        telemetry.addData("Тики", ticks);
+        telemetry.addData("Угол турели", "%.1f°", shooter.getTurretDeg());
+        telemetry.addData("Скорость турели", "%.0f °/с", shooter.getTurretVelDeg());
+        if (motorMode) {
+            telemetry.addData("Цель", "%.1f°", targetDeg);
+            telemetry.addData("Ошибка", "%.2f°", targetDeg - shooter.getTurretDeg());
+        } else {
             telemetry.addLine();
-            telemetry.addData("-> turretRangeDeg", "%.1f", range);
-            if (!Double.isNaN(backPos)) {
-                double leftSide = Math.abs(backPos - leftPos) * range;
-                double rightSide = Math.abs(rightPos - backPos) * range;
-                telemetry.addData("-> turretCenter", "%.3f", backPos);
-                telemetry.addData("   градусов назад->влево", "%.1f (должно быть 90)", leftSide);
-                telemetry.addData("   градусов назад->вправо", "%.1f (должно быть 90)", rightSide);
-            }
+            telemetry.addLine("Повернуть рукой ровно на 1 оборот влево:");
+            telemetry.addData("-> turretTicksPerRev", Math.abs(ticks));
+            telemetry.addData("-> передача (мотор:турель)", "%.2f : 1", Math.abs(ticks) / 145.1);
+            telemetry.addData("-> turretReversed", ticks < 0
+                    ? "поменять на " + !ShooterSubsystem.turretReversed + " (тики отрицательные)"
+                    : "оставить " + ShooterSubsystem.turretReversed);
         }
         telemetry.update();
     }
 
-    private static boolean pressed(boolean now, boolean last) {
-        return now && !last;
+    @Override
+    public void stop() {
+        if (shooter != null) shooter.stop();
     }
 
-    private static String fmt(double value) {
-        return Double.isNaN(value) ? "-" : String.format("%.3f", value);
+    private static boolean pressed(boolean now, boolean last) {
+        return now && !last;
     }
 }

@@ -3,9 +3,7 @@ package org.firstinspires.ftc.teamcode.Subsystems;
 import com.bylazar.configurables.annotations.Configurable;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
-import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.HardwareMap;
-import com.qualcomm.robotcore.hardware.Servo;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 
@@ -16,30 +14,58 @@ public class ShooterSubsystem {
 
     // Единственный мотор маховика. Его энкодер должен быть подключён.
     private static final String FLYWHEEL_NAME = "flywheel";
+    // Мотор турели (goBILDA 1150 rpm). Его энкодер должен быть подключён.
+    private static final String TURRET_NAME = "turret";
 
     private final DcMotorEx flywheel;
-    private final Servo turretLeft;
-    private final Servo turretRight;
+    private final DcMotorEx turret;
 
-    /* ================= CONSTANTS ================= */
+    /* ================= TURRET CONSTANTS ================= */
     // Не final — чтобы их можно было менять через Panels (@Configurable)
 
     // Смещение турели относительно центра робота
     public static double turretOffsetX = -2.6;
     public static double turretOffsetY = 0;
 
-    // Позиция сервы, когда турель смотрит строго назад (turretCenterHeadingDeg). Из формулы: 0.493333.
-    public static double turretCenter = 0.493333;
-    // Куда смотрит турель при turretCenter, градусы от носа робота:
-    // 0 — вперёд, 180 — назад (турель установлена развёрнутой)
+    // Куда смотрит турель в нулевом положении, градусы от носа робота:
+    // 0 — вперёд, 180 — назад (турель установлена развёрнутой).
+    // Ноль энкодера ставится при resetTurretEncoder(): в этот момент турель должна смотреть сюда.
     public static double turretCenterHeadingDeg = 180;
-    // Сколько градусов поворота турели дают позиции сервы 0..1. Из формулы: 1 / 0.00244444 = 409.09.
-    // Больше 360 — есть запас: турель доворачивает до ~±205°, а не крутится на полный оборот на краю.
-    // Знак: поворот на +угол (против часовой) уменьшает позицию сервы.
-    public static double turretRangeDeg = 409.09;
+
+    // Тики энкодера на ОДИН оборот турели.
+    // goBILDA 1150 rpm = 145.1 тика на оборот вала мотора, умножить на передачу до турели.
+    // Точное число меряется в OpMode "Turret Calibration".
+    public static double turretTicksPerRev = 145.1;
+    // true, если при повороте турели влево (против часовой, если смотреть сверху) тики уменьшаются.
+    public static boolean turretReversed = false;
+
+    // Ход турели от нулевого положения, градусы (+ = влево / против часовой).
+    public static double turretMinDeg = -180;
+    public static double turretMaxDeg = 180;
     // Цель у края хода: турель стоит в краю и перекидывается на другую сторону,
     // только когда цель ушла за край больше чем на столько градусов (чтобы не дёргалась туда-сюда).
     public static double turretFlipHysteresisDeg = 15;
+    // Если турель ушла за ход дальше чем на столько градусов — авария: мощность снимается.
+    public static double TURRET_FAULT_MARGIN_DEG = 30;
+
+    // Регулятор положения турели:
+    //   kP — мощность на 1° ошибки, kD — гасит раскачку (мощность на 1°/с скорости турели),
+    //   kS — минимальная мощность, чтобы сдвинуть турель с места (трение),
+    //   omegaFF — подкручивать турель навстречу повороту робота (0 — выкл, 1 — полностью).
+    // Турель качается вокруг цели — уменьшить kP или увеличить kD. Не доходит — увеличить kS.
+    public static double turretKP = 0.015;
+    public static double turretKD = 0.0006;
+    public static double turretKS = 0.04;
+    public static double turretOmegaFF = 1.0;
+    public static double turretMaxPower = 0.8;
+    // Ошибка меньше этого (градусы) не исправляется — чтобы турель не дрожала.
+    public static double turretToleranceDeg = 0.75;
+    // goBILDA 1150 rpm: 145.1 тика на оборот вала, 1150 об/мин = 6900 °/с без нагрузки.
+    // Отсюда и из turretTicksPerRev считается макс. скорость турели (нужна только для omegaFF).
+    private static final double MOTOR_TICKS_PER_REV = 145.1;
+    private static final double MOTOR_FREE_SPEED_DEG_PER_SEC = 1150 / 60.0 * 360;
+
+    /* ================= AIM CONSTANTS ================= */
 
     // Точки прицеливания
     // X цели по альянсу. Красная — зеркало синей относительно x = 72 (144 - 57 = 87).
@@ -68,34 +94,37 @@ public class ShooterSubsystem {
     // Горизонтальная скорость мяча, дюймы/с. ОЦЕНКА — подобрать на поле:
     // если на ходу мяч уходит по направлению движения робота — уменьшить, если против — увеличить.
     public static double ballSpeed = 220;
-    // Задержка сервы турели и цикла, с: на столько вперёд предсказывается позиция робота.
+    // Задержка турели и цикла, с: на столько вперёд предсказывается позиция робота.
     public static double aimLatencySec = 0;
+
+    /* ================= FLYWHEEL CONSTANTS ================= */
 
     // Регулятор маховика.
     //   V — мощность на 1 тик/с (V = 1 / макс. скорость; 0.00033 -> ~3000 тиков/с на полной мощности)
     //   S — мощность на трение, P — поправка на ошибку скорости
     //   threshold — если ошибка больше, мотор просто даёт 1.0 (разгон) или 0 (выбег)
-    // Было P = 0.07, S = 0.6, threshold = 1000: это почти "вкл/выкл", скорость прыгала вокруг цели.
     public static double P = 0.002;
     public static double V = 0.00033;
     public static double S = 0.05;
     public static int threshold = 200;
     // Насколько скорость может отличаться от цели, чтобы считать маховик готовым (isReady), тики/с.
-    // Отдельно от threshold: с threshold = 1000 "готов" срабатывал, когда до цели не хватало 1000.
     public static int readyTolerance = 100;
 
     private static final double FIELD_MID_Y = 72;
 
     /* ================= STATE ================= */
 
-    public static int vel = 0;            // целевая скорость маховика, тики/с
-    public static double targetAngleDeg;  // позиция сервы турели (0..1)
-    public static double angleToGoal;     // угол до цели относительно робота, градусы
+    public static int vel = 0;              // целевая скорость маховика, тики/с
+    public static double turretTargetDeg;   // куда крутим турель, градусы от нуля (+ = влево)
+    public static double angleToGoal;       // угол до цели относительно робота, градусы
 
     private boolean flywheelEnabled = false;
     private double distanceToGoal = 0;
-    // Текущий поворот турели от turretCenter, градусы (может быть больше 180 при запасе хода)
-    private double turretRelativeDeg = 0;
+    private double fixedVelocity = 0;
+    // Угловая скорость робота из последнего alignTurret, °/с — для omegaFF
+    private double robotOmegaDeg = 0;
+    // Авария турели (ушла за ход) — мотор выключен до перезапуска OpMode
+    private boolean turretFault = false;
 
     /* ================= INIT ================= */
 
@@ -106,36 +135,53 @@ public class ShooterSubsystem {
         flywheel.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
         flywheel.setPower(0);
 
-        turretLeft = hardwareMap.get(Servo.class, "leftTurret");
-        turretRight = hardwareMap.get(Servo.class, "rightTurret");
+        // Энкодер здесь НЕ сбрасывается: TeleOp после автонома продолжает с его нулём.
+        // Сброс — resetTurretEncoder() (автономы и TeleOp без автонома).
+        turret = hardwareMap.get(DcMotorEx.class, TURRET_NAME);
+        turret.setDirection(DcMotor.Direction.FORWARD);
+        turret.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+        turret.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        turret.setPower(0);
 
-        turretLeft.setDirection(Servo.Direction.FORWARD);
-        turretRight.setDirection(Servo.Direction.FORWARD);
-
-        turretLeft.setPosition(0.5);
-        turretRight.setPosition(0.5);
+        turretTargetDeg = 0;
+        angleToGoal = turretCenterHeadingDeg;
     }
 
     /* ================= TURRET ================= */
 
-    public void setTurretPosition(double position) {
-        turretLeft.setPosition(position);
-        turretRight.setPosition(position);
+    /**
+     * Текущее положение турели принимается за ноль (смотрит на turretCenterHeadingDeg).
+     * Вызывать в init, когда турель стоит в нулевом положении. Мотор не двигается.
+     */
+    public void resetTurretEncoder() {
+        turret.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+        turret.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+        turretTargetDeg = 0;
+        turretFault = false; // новый ноль — снимаем аварию
+        angleToGoal = turretCenterHeadingDeg;
     }
 
-    /** Ставит турель в середину хода сервы (при развёрнутой турели она смотрит назад). */
+    /** Крутить турель на угол от нуля, градусы (+ = влево). Едет в update(). */
+    public void setTurretAngle(double degrees) {
+        turretTargetDeg = clamp(degrees, turretMinDeg, turretMaxDeg);
+        robotOmegaDeg = 0;
+    }
+
+    /** Турель в ноль (при развёрнутой турели смотрит назад). */
     public void centerTurret() {
-        // Сбрасываем и состояние наведения, иначе выбор стороны и телеметрия берут старый угол.
-        turretRelativeDeg = 0;
+        setTurretAngle(0);
         angleToGoal = turretCenterHeadingDeg;
-        targetAngleDeg = 0.5;
-        turretRelativeDeg = (turretCenter - 0.5) * turretRangeDeg; // угол, соответствующий 0.5
-        setTurretPosition(0.5);
+    }
+
+    /** BRAKE — держит положение без мощности, FLOAT — крутится от руки (для калибровки). */
+    public void setTurretBrake(boolean brake) {
+        turret.setZeroPowerBehavior(brake
+                ? DcMotor.ZeroPowerBehavior.BRAKE
+                : DcMotor.ZeroPowerBehavior.FLOAT);
     }
 
     /**
-     * Наводит турель на цель по позиции робота.
-     * Маховиком не управляет — для этого есть update().
+     * Наводит турель на цель по позиции робота. Мотор крутится в update().
      *
      * @param heading курс робота в радианах
      */
@@ -144,7 +190,7 @@ public class ShooterSubsystem {
     }
 
     /**
-     * Наводит турель с учётом движения робота (стрельба на ходу).
+     * Наводит турель с учётом движения робота (стрельба на ходу). Мотор крутится в update().
      *
      * @param heading курс робота в радианах
      * @param vx      скорость робота по X поля, дюймы/с
@@ -188,12 +234,10 @@ public class ShooterSubsystem {
         double fieldAngle = Math.toDegrees(Math.atan2(aimY - turretY, aimX - turretX));
         angleToGoal = normalizeDegrees(fieldAngle - Math.toDegrees(heading));
 
-        // Угол, на который турель должна отвернуться от своего положения при turretCenter
-        turretRelativeDeg = chooseTurretRelative(normalizeDegrees(angleToGoal - turretCenterHeadingDeg));
-        targetAngleDeg = calculateServoPos(turretRelativeDeg);
+        // Угол, на который турель должна отвернуться от нулевого положения
+        turretTargetDeg = chooseTurretRelative(normalizeDegrees(angleToGoal - turretCenterHeadingDeg));
         distanceToGoal = Math.hypot(aimX - turretX, aimY - turretY);
-
-        setTurretPosition(targetAngleDeg);
+        robotOmegaDeg = Math.toDegrees(omega);
     }
 
     /** Старый вызов: наводит турель и сразу крутит маховик. */
@@ -204,12 +248,40 @@ public class ShooterSubsystem {
         update();
     }
 
-    /**
-     * Позиция сервы для поворота турели на angle градусов от положения "назад".
-     * Ваша формула: -0.00244444 * angle + 0.493333 (= turretCenter - angle / turretRangeDeg).
-     */
-    public double calculateServoPos(double angle) {
-        return clamp(turretCenter - angle / turretRangeDeg, 0, 1);
+    /** Держит турель на turretTargetDeg. Вызывается из update(). */
+    private void updateTurret() {
+        double actual = getTurretDeg();
+
+        // Защита: турель ушла далеко за ход — скорее всего, перепутан turretReversed
+        // (регулятор крутит "от цели") или отвалился энкодер. Снимаем мощность, чтобы
+        // не намотать и не порвать провода. Снимается перезапуском OpMode или resetTurretEncoder().
+        if (actual > turretMaxDeg + TURRET_FAULT_MARGIN_DEG || actual < turretMinDeg - TURRET_FAULT_MARGIN_DEG) {
+            turretFault = true;
+        }
+        if (turretFault) {
+            setTurretPower(0);
+            return;
+        }
+
+        double error = turretTargetDeg - actual;
+
+        // Робот крутится на omega — относительно робота цель уезжает на -omega.
+        double desiredRate = -robotOmegaDeg * turretOmegaFF;
+        double maxSpeed = MOTOR_FREE_SPEED_DEG_PER_SEC * MOTOR_TICKS_PER_REV / turretTicksPerRev;
+        double feedForward = desiredRate / maxSpeed;
+        double damping = turretKD * (desiredRate - getTurretVelDeg());
+
+        double power;
+        if (Math.abs(error) <= turretToleranceDeg) {
+            power = feedForward;
+        } else {
+            power = turretKP * error + damping + feedForward + Math.signum(error) * turretKS;
+        }
+        setTurretPower(clamp(power, -turretMaxPower, turretMaxPower));
+    }
+
+    private void setTurretPower(double power) {
+        turret.setPower(turretReversed ? -power : power);
     }
 
     /* ================= FLYWHEEL ================= */
@@ -230,14 +302,13 @@ public class ShooterSubsystem {
         fixedVelocity = ticksPerSecond;
     }
 
-    private double fixedVelocity = 0;
-
-    /** Вызывать каждый цикл: держит скорость маховика. */
+    /** Вызывать каждый цикл: держит скорость маховика и положение турели. */
     public void update() {
         double target = fixedVelocity > 0 ? fixedVelocity : velocityForDistance(distanceToGoal);
         vel = flywheelEnabled ? (int) Math.max(0, target) : 0;
 
         flywheel.setPower(vel > 0 ? PVSController(P, V, S, threshold, vel, getVel()) : 0);
+        updateTurret();
     }
 
     /** Нужная скорость маховика (тики/с) для расстояния до цели (дюймы). */
@@ -265,11 +336,22 @@ public class ShooterSubsystem {
         return flywheelEnabled && vel > 0 && Math.abs(vel - getVel()) <= readyTolerance;
     }
 
-    /** Выключает маховик. */
+    /** true, когда турель доехала до цели (с запасом в 3 допуска). */
+    /** true — турель ушла за ход, мотор выключен (проверьте turretReversed и энкодер). */
+    public boolean isTurretFault() {
+        return turretFault;
+    }
+
+    public boolean isTurretOnTarget() {
+        return Math.abs(turretTargetDeg - getTurretDeg()) <= 3 * turretToleranceDeg;
+    }
+
+    /** Выключает маховик и снимает мощность с турели (до следующего update()). */
     public void stop() {
         flywheelEnabled = false;
         vel = 0;
         flywheel.setPower(0);
+        turret.setPower(0);
     }
 
     public static double PVSController(double kP, double kV, double kS,
@@ -287,9 +369,28 @@ public class ShooterSubsystem {
     /* ================= GETTERS ================= */
 
     public double getVel()   { return flywheel.getVelocity(); }
-    public double getPos()   { return targetAngleDeg; }
+    /** Цель турели, градусы от нуля. */
+    public double getPos()   { return turretTargetDeg; }
     public double getAngle() { return angleToGoal; }
     public double getDistance() { return distanceToGoal; }
+
+    /** Сырые тики энкодера турели (со знаком turretReversed). */
+    public int getTurretTicks() {
+        int ticks = turret.getCurrentPosition();
+        return turretReversed ? -ticks : ticks;
+    }
+
+    /** Текущий угол турели от нуля, градусы (+ = влево). */
+    public double getTurretDeg() {
+        return getTurretTicks() * 360.0 / turretTicksPerRev;
+    }
+
+    /** Текущая скорость турели, °/с. */
+    public double getTurretVelDeg() {
+        double ticksPerSec = turret.getVelocity();
+        if (turretReversed) ticksPerSec = -ticksPerSec;
+        return ticksPerSec * 360.0 / turretTicksPerRev;
+    }
 
     /* ================= HELPERS ================= */
 
@@ -299,31 +400,34 @@ public class ShooterSubsystem {
 
     /**
      * Один и тот же угол можно получить как a, a+360 или a-360. Берём вариант, который
-     * помещается в ход сервы и ближе всего к текущему положению турели:
+     * помещается в ход турели и ближе всего к текущей цели:
      * так она не делает полный оборот, когда цель проходит через край хода.
      */
     private double chooseTurretRelative(double relative) {
-        // Знак у формулы минус: позиция 1 — это самый большой поворот по часовой, 0 — против часовой.
-        double min = -(1 - turretCenter) * turretRangeDeg; // поворот при позиции сервы 1 (≈ -207°)
-        double max = turretCenter * turretRangeDeg;        // поворот при позиции сервы 0 (≈ +202°)
+        double min = turretMinDeg;
+        double max = turretMaxDeg;
+        double current = turretTargetDeg;
 
         double best = relative;
         boolean found = false;
         for (double candidate : new double[]{relative, relative + 360, relative - 360}) {
             if (candidate < min || candidate > max) continue;
-            if (!found || Math.abs(candidate - turretRelativeDeg) < Math.abs(best - turretRelativeDeg)) {
+            if (!found || Math.abs(candidate - current) < Math.abs(best - current)) {
                 best = candidate;
                 found = true;
             }
         }
         if (!found) {
-            return relative; // ни один не помещается — clamp ниже упрёт турель в край
+            // Цель в "мёртвой зоне" хода — встаём в край, который к ней ближе по кругу.
+            double toMin = Math.abs(normalizeDegrees(relative - min));
+            double toMax = Math.abs(normalizeDegrees(relative - max));
+            return toMin < toMax ? min : max;
         }
 
         // Переброс на другую сторону (поворот больше чем на 180°): делаем его, только если цель
         // ушла за край хода дальше гистерезиса. Иначе держим турель в ближнем краю.
-        if (Math.abs(best - turretRelativeDeg) > 180) {
-            double sameSide = best + (best < turretRelativeDeg ? 360 : -360); // тот же угол со стороны турели
+        if (Math.abs(best - current) > 180) {
+            double sameSide = best + (best < current ? 360 : -360); // тот же угол со стороны турели
             double edge = sameSide > max ? max : min;
             if (Math.abs(sameSide - edge) < turretFlipHysteresisDeg) {
                 return edge;
